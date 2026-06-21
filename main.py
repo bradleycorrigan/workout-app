@@ -140,7 +140,7 @@ async def home(request: Request) -> HTMLResponse:
         weigh_history = rows_to_dicts(
             await conn.fetch(
                 """
-                SELECT weigh_date, weight_kg
+                SELECT weigh_in_id, weigh_date, weight_kg
                 FROM weigh_ins
                 WHERE user_id = $1
                 ORDER BY weigh_date DESC
@@ -152,7 +152,7 @@ async def home(request: Request) -> HTMLResponse:
         injection_history = rows_to_dicts(
             await conn.fetch(
                 """
-                SELECT injection_date, dose_mg
+                SELECT injection_id, injection_date, dose_mg
                 FROM injections
                 WHERE user_id = $1
                 ORDER BY injection_date DESC
@@ -164,7 +164,7 @@ async def home(request: Request) -> HTMLResponse:
         workout_history = rows_to_dicts(
             await conn.fetch(
                 """
-                SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp, notes
+                SELECT workout_id, workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp, notes
                 FROM workouts
                 WHERE user_id = $1
                 ORDER BY workout_date DESC, workout_id DESC
@@ -298,6 +298,177 @@ async def add_workout(
         request=request,
         name="_save_success.html",
         context={"request": request, "message": f"Logged {len(workout_types)} workout(s)"},
+    )
+
+
+@app.post("/weigh-ins/{weigh_in_id}/delete", response_class=HTMLResponse)
+async def delete_weigh_in(request: Request, weigh_in_id: int) -> HTMLResponse:
+    conn = await get_connection()
+    try:
+        deleted = await conn.execute(
+            "DELETE FROM weigh_ins WHERE weigh_in_id = $1 AND user_id = $2",
+            weigh_in_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if deleted == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Weigh-in not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Deleted weigh-in"},
+    )
+
+
+@app.post("/weigh-ins/{weigh_in_id}/edit", response_class=HTMLResponse)
+async def edit_weigh_in(
+    request: Request,
+    weigh_in_id: int,
+    weigh_date: date = Form(...),
+    weight_kg: float = Form(...),
+) -> HTMLResponse:
+    conn = await get_connection()
+    try:
+        updated = await conn.execute(
+            """
+            UPDATE weigh_ins
+            SET weigh_date = $1, weight_kg = $2
+            WHERE weigh_in_id = $3 AND user_id = $4
+            """,
+            weigh_date,
+            weight_kg,
+            weigh_in_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if updated == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Weigh-in not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Updated weigh-in"},
+    )
+
+
+@app.post("/injections/{injection_id}/delete", response_class=HTMLResponse)
+async def delete_injection(request: Request, injection_id: int) -> HTMLResponse:
+    conn = await get_connection()
+    try:
+        deleted = await conn.execute(
+            "DELETE FROM injections WHERE injection_id = $1 AND user_id = $2",
+            injection_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if deleted == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Injection not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Deleted injection"},
+    )
+
+
+@app.post("/injections/{injection_id}/edit", response_class=HTMLResponse)
+async def edit_injection(
+    request: Request,
+    injection_id: int,
+    injection_date: date = Form(...),
+    dose_mg: float = Form(...),
+) -> HTMLResponse:
+    conn = await get_connection()
+    try:
+        updated = await conn.execute(
+            """
+            UPDATE injections
+            SET injection_date = $1, dose_mg = $2
+            WHERE injection_id = $3 AND user_id = $4
+            """,
+            injection_date,
+            dose_mg,
+            injection_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if updated == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Injection not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Updated injection"},
+    )
+
+
+@app.post("/workouts/{workout_id}/delete", response_class=HTMLResponse)
+async def delete_workout(request: Request, workout_id: int) -> HTMLResponse:
+    conn = await get_connection()
+    try:
+        deleted = await conn.execute(
+            "DELETE FROM workouts WHERE workout_id = $1 AND user_id = $2",
+            workout_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if deleted == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Workout not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Deleted workout"},
+    )
+
+
+@app.post("/workouts/{workout_id}/edit", response_class=HTMLResponse)
+async def edit_workout(
+    request: Request,
+    workout_id: int,
+    workout_date: date = Form(...),
+    workout_type: str = Form(...),
+) -> HTMLResponse:
+    if workout_type not in WORKOUT_PRICES_GBP:
+        raise HTTPException(status_code=400, detail=f"Unsupported workout type: {workout_type}")
+
+    conn = await get_connection()
+    try:
+        updated = await conn.execute(
+            """
+            UPDATE workouts
+            SET workout_date = $1,
+                workout_type = $2,
+                workout_value_gbp = $3
+            WHERE workout_id = $4 AND user_id = $5
+            """,
+            workout_date,
+            workout_type,
+            WORKOUT_PRICES_GBP[workout_type],
+            workout_id,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if updated == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Workout not found.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_save_success.html",
+        context={"request": request, "message": "Updated workout"},
     )
 
 

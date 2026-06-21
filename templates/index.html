@@ -428,6 +428,156 @@
             text-align: left;
         }
 
+        .recent-row:hover {
+            background: rgba(183, 217, 195, 0.2);
+        }
+
+        .row-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+        }
+
+        .recent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .recent-header h3 {
+            margin: 0;
+        }
+
+        .recent-menu {
+            position: relative;
+        }
+
+        .recent-menu-btn {
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 1rem;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .recent-menu-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            min-width: 140px;
+            display: none;
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-line);
+            background: rgba(255, 255, 255, 0.86);
+            box-shadow: 0 10px 24px rgba(0, 43, 54, 0.16);
+            backdrop-filter: blur(10px);
+            z-index: 3;
+        }
+
+        .recent-menu.open .recent-menu-panel {
+            display: block;
+        }
+
+        .recent-menu-item {
+            width: 100%;
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            text-align: left;
+        }
+
+        .row-action-btn {
+            padding: 5px 9px;
+            font-size: 0.78rem;
+            line-height: 1;
+        }
+
+        .recent-card .actions-col,
+        .recent-card .actions-cell {
+            display: none;
+        }
+
+        .recent-card.is-editing .actions-col,
+        .recent-card.is-editing .actions-cell {
+            display: table-cell;
+        }
+
+        .crud-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(0, 43, 54, 0.24);
+            backdrop-filter: blur(2px);
+        }
+
+        .crud-dialog {
+            width: min(420px, 94vw);
+            padding: 12px;
+            border-radius: 16px;
+            background: rgba(252, 248, 235, 0.93);
+            border: 1px solid rgba(47, 111, 79, 0.28);
+            box-shadow: 0 18px 40px rgba(0, 43, 54, 0.22);
+        }
+
+        .crud-title {
+            margin: 0 0 8px;
+            font-size: 1.5rem;
+        }
+
+        .crud-body {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .crud-body label {
+            font-size: 0.84rem;
+            font-weight: 700;
+            color: #365158;
+        }
+
+        .crud-body input,
+        .crud-body select {
+            min-height: 40px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(47, 111, 79, 0.3);
+            background: rgba(255, 255, 255, 0.82);
+        }
+
+        .crud-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .crud-cancel {
+            color: #fff5f5;
+            background: linear-gradient(140deg, #b44a4a, #8f3333);
+            border-color: rgba(143, 51, 51, 0.85);
+            box-shadow: 0 8px 18px rgba(143, 51, 51, 0.28);
+        }
+
+        .crud-cancel:hover {
+            background: linear-gradient(140deg, #c55656, #a13e3e);
+            box-shadow: 0 11px 22px rgba(143, 51, 51, 0.34);
+        }
+
+        .crud-submit.delete {
+            background: linear-gradient(135deg, #9c3d3d, #7e2f2f);
+        }
+
         th {
             color: var(--base00);
             font-size: 0.82rem;
@@ -608,19 +758,45 @@
         </section>
 
         <section class="history-grid">
-            <article class="card">
-                <h3>📉 Recent Weigh-ins</h3>
+            <article class="card recent-card" data-recent-card>
+                <div class="recent-header">
+                    <h3>📉 Recent Weigh-ins</h3>
+                    <div class="recent-menu" data-recent-menu>
+                        <button type="button" class="recent-menu-btn liquid-pill" data-menu-toggle aria-label="Open section menu" aria-expanded="false">⋯</button>
+                        <div class="recent-menu-panel">
+                            <button type="button" class="recent-menu-item liquid-pill" data-edit-toggle>Edit entries</button>
+                        </div>
+                    </div>
+                </div>
                 {% if weigh_history %}
                     <div class="table-wrap history-scroll">
                         <table>
                             <thead>
-                                <tr><th>Date</th><th>Kg</th></tr>
+                                <tr><th>Date</th><th>Kg</th><th class="actions-col">Actions</th></tr>
                             </thead>
                             <tbody>
                                 {% for row in weigh_history %}
-                                    <tr>
+                                    <tr class="recent-row">
                                         <td>{{ row.weigh_date }}</td>
                                         <td>{{ row.weight_kg }}</td>
+                                        <td class="actions-cell">
+                                            <div class="row-actions">
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-edit"
+                                                    data-kind="weigh"
+                                                    data-id="{{ row.weigh_in_id }}"
+                                                    data-date="{{ row.weigh_date }}"
+                                                    data-value="{{ row.weight_kg }}"
+                                                >Edit</button>
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-delete"
+                                                    data-kind="weigh"
+                                                    data-id="{{ row.weigh_in_id }}"
+                                                >Delete</button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -632,19 +808,45 @@
                 {% endif %}
             </article>
 
-            <article class="card">
-                <h3>🧪 Recent Injections</h3>
+            <article class="card recent-card" data-recent-card>
+                <div class="recent-header">
+                    <h3>🧪 Recent Injections</h3>
+                    <div class="recent-menu" data-recent-menu>
+                        <button type="button" class="recent-menu-btn liquid-pill" data-menu-toggle aria-label="Open section menu" aria-expanded="false">⋯</button>
+                        <div class="recent-menu-panel">
+                            <button type="button" class="recent-menu-item liquid-pill" data-edit-toggle>Edit entries</button>
+                        </div>
+                    </div>
+                </div>
                 {% if injection_history %}
                     <div class="table-wrap history-scroll">
                         <table>
                             <thead>
-                                <tr><th>Date</th><th>Dose (mg)</th></tr>
+                                <tr><th>Date</th><th>Dose (mg)</th><th class="actions-col">Actions</th></tr>
                             </thead>
                             <tbody>
                                 {% for row in injection_history %}
-                                    <tr>
+                                    <tr class="recent-row">
                                         <td>{{ row.injection_date }}</td>
                                         <td>{{ row.dose_mg }}</td>
+                                        <td class="actions-cell">
+                                            <div class="row-actions">
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-edit"
+                                                    data-kind="injection"
+                                                    data-id="{{ row.injection_id }}"
+                                                    data-date="{{ row.injection_date }}"
+                                                    data-value="{{ row.dose_mg }}"
+                                                >Edit</button>
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-delete"
+                                                    data-kind="injection"
+                                                    data-id="{{ row.injection_id }}"
+                                                >Delete</button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -656,20 +858,46 @@
                 {% endif %}
             </article>
 
-            <article class="card">
-                <h3>🔥 Recent Workouts</h3>
+            <article class="card recent-card" data-recent-card>
+                <div class="recent-header">
+                    <h3>🔥 Recent Workouts</h3>
+                    <div class="recent-menu" data-recent-menu>
+                        <button type="button" class="recent-menu-btn liquid-pill" data-menu-toggle aria-label="Open section menu" aria-expanded="false">⋯</button>
+                        <div class="recent-menu-panel">
+                            <button type="button" class="recent-menu-item liquid-pill" data-edit-toggle>Edit entries</button>
+                        </div>
+                    </div>
+                </div>
                 {% if workout_history %}
                     <div class="table-wrap history-scroll">
                         <table>
                             <thead>
-                                <tr><th>Date</th><th>Type</th><th>GBP</th></tr>
+                                <tr><th>Date</th><th>Type</th><th>GBP</th><th class="actions-col">Actions</th></tr>
                             </thead>
                             <tbody>
                                 {% for row in workout_history %}
-                                    <tr>
+                                    <tr class="recent-row">
                                         <td>{{ row.workout_date }}</td>
                                         <td>{{ row.workout_type }}</td>
                                         <td>{{ row.workout_value_gbp }}</td>
+                                        <td class="actions-cell">
+                                            <div class="row-actions">
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-edit"
+                                                    data-kind="workout"
+                                                    data-id="{{ row.workout_id }}"
+                                                    data-date="{{ row.workout_date }}"
+                                                    data-type="{{ row.workout_type }}"
+                                                >Edit</button>
+                                                <button
+                                                    type="button"
+                                                    class="row-action-btn liquid-pill recent-delete"
+                                                    data-kind="workout"
+                                                    data-id="{{ row.workout_id }}"
+                                                >Delete</button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -734,6 +962,19 @@
         </section>
     </main>
 
+    <div id="crud-modal" class="crud-modal is-collapsed" role="dialog" aria-modal="true" aria-labelledby="crud-title">
+        <div class="crud-dialog card">
+            <h3 id="crud-title" class="crud-title">Edit entry</h3>
+            <form id="crud-form">
+                <div id="crud-body" class="crud-body"></div>
+                <div class="crud-actions">
+                    <button id="crud-cancel" class="crud-cancel liquid-pill" type="button">Cancel</button>
+                    <button id="crud-submit" class="crud-submit liquid-pill" type="submit">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function applyHistoryVisibility(scrollBox, visibleCount) {
             const rows = Array.from(scrollBox.querySelectorAll('tbody tr'));
@@ -753,6 +994,28 @@
             const expanded = visibleCount >= totalRows;
             button.textContent = expanded ? 'Show less' : `See ${Math.min(step, remaining)} more`;
             button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        async function postRowAction(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(payload).toString(),
+            });
+
+            if (!response.ok) {
+                let message = 'Request failed. Please try again.';
+                try {
+                    const json = await response.json();
+                    if (json && json.detail) message = String(json.detail);
+                } catch {
+                    // no-op
+                }
+                alert(message);
+                return;
+            }
+
+            window.location.reload();
         }
 
         function initializeHistoryCards() {
@@ -793,12 +1056,6 @@
             updateHistoryButton(button, visibleRows, totalRows);
         }
 
-        document.addEventListener('click', (event) => {
-            const button = event.target.closest('.history-toggle');
-            if (!button) return;
-            toggleHistory(button);
-        });
-
         const buttons = Array.from(document.querySelectorAll('.tab-btn'));
         const panels = {
             log: document.getElementById('tab-log'),
@@ -809,21 +1066,20 @@
         const resetFiltersButton = document.getElementById('filter-reset');
         const filtersToggleButton = document.getElementById('insight-filters-toggle');
         const filtersPanel = document.getElementById('insight-filters-panel');
+        const crudModal = document.getElementById('crud-modal');
+        const crudForm = document.getElementById('crud-form');
+        const crudTitle = document.getElementById('crud-title');
+        const crudBody = document.getElementById('crud-body');
+        const crudCancel = document.getElementById('crud-cancel');
+        const crudSubmit = document.getElementById('crud-submit');
         const filterPills = Array.from(document.querySelectorAll('.filter-pill'));
         const insightsState = {
             exercise: 'all',
             startDate: '',
             endDate: '',
         };
+        let pendingCrudAction = null;
         let insightsLoaded = false;
-
-        function getInsightsQuery() {
-            const params = new URLSearchParams();
-            params.set('exercise', insightsState.exercise);
-            if (insightsState.startDate) params.set('start_date', insightsState.startDate);
-            if (insightsState.endDate) params.set('end_date', insightsState.endDate);
-            return params.toString();
-        }
 
         function renderPillState() {
             filterPills.forEach((pill) => {
@@ -838,6 +1094,31 @@
             filtersToggleButton.textContent = isOpen ? 'Hide filters' : 'Show filters';
         }
 
+        function closeCrudModal() {
+            if (!crudModal) return;
+            crudModal.classList.add('is-collapsed');
+            pendingCrudAction = null;
+            if (crudBody) crudBody.innerHTML = '';
+        }
+
+        function openCrudModal(config) {
+            if (!crudModal || !crudBody || !crudTitle || !crudSubmit) return;
+            pendingCrudAction = config;
+            crudTitle.textContent = config.title;
+            crudBody.innerHTML = config.bodyHtml;
+            crudSubmit.textContent = config.submitLabel;
+            crudSubmit.classList.toggle('delete', config.submitKind === 'delete');
+            crudModal.classList.remove('is-collapsed');
+        }
+
+        function getInsightsQuery() {
+            const params = new URLSearchParams();
+            params.set('exercise', insightsState.exercise);
+            if (insightsState.startDate) params.set('start_date', insightsState.startDate);
+            if (insightsState.endDate) params.set('end_date', insightsState.endDate);
+            return params.toString();
+        }
+
         async function renderInsightSlot(el, url) {
             try {
                 const response = await fetch(url, { headers: { 'HX-Request': 'true' } });
@@ -848,7 +1129,6 @@
                 const html = await response.text();
                 el.innerHTML = html;
 
-                // Ensure inline scripts in Plotly HTML fragments execute after insertion.
                 Array.from(el.querySelectorAll('script')).forEach((oldScript) => {
                     const newScript = document.createElement('script');
                     Array.from(oldScript.attributes).forEach((attr) => {
@@ -893,6 +1173,176 @@
             window.location.hash = tabName;
         }
 
+        document.addEventListener('click', async (event) => {
+            const historyBtn = event.target.closest('.history-toggle');
+            if (historyBtn) {
+                toggleHistory(historyBtn);
+                return;
+            }
+
+            const menuToggle = event.target.closest('[data-menu-toggle]');
+            if (menuToggle) {
+                const menu = menuToggle.closest('[data-recent-menu]');
+                if (!menu) return;
+
+                const isOpen = menu.classList.contains('open');
+                document.querySelectorAll('[data-recent-menu].open').forEach((el) => {
+                    el.classList.remove('open');
+                    const btn = el.querySelector('[data-menu-toggle]');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                });
+
+                if (!isOpen) {
+                    menu.classList.add('open');
+                    menuToggle.setAttribute('aria-expanded', 'true');
+                }
+                return;
+            }
+
+            const editToggle = event.target.closest('[data-edit-toggle]');
+            if (editToggle) {
+                const card = editToggle.closest('[data-recent-card]');
+                if (!card) return;
+
+                const nextEditingState = !card.classList.contains('is-editing');
+                card.classList.toggle('is-editing', nextEditingState);
+                editToggle.textContent = nextEditingState ? 'Done editing' : 'Edit entries';
+
+                const menu = editToggle.closest('[data-recent-menu]');
+                if (menu) {
+                    menu.classList.remove('open');
+                    const btn = menu.querySelector('[data-menu-toggle]');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                }
+                return;
+            }
+
+            const deleteButton = event.target.closest('.recent-delete');
+            if (deleteButton) {
+                const kind = deleteButton.dataset.kind;
+                const id = deleteButton.dataset.id;
+                if (!kind || !id) return;
+
+                const pathByKind = {
+                    weigh: `/weigh-ins/${id}/delete`,
+                    injection: `/injections/${id}/delete`,
+                    workout: `/workouts/${id}/delete`,
+                };
+                const labelByKind = {
+                    weigh: 'weigh-in',
+                    injection: 'injection',
+                    workout: 'workout',
+                };
+
+                openCrudModal({
+                    title: `Delete ${labelByKind[kind]}`,
+                    bodyHtml: '<p class="muted">Are you sure? This action cannot be undone.</p>',
+                    submitLabel: 'Delete',
+                    submitKind: 'delete',
+                    url: pathByKind[kind],
+                });
+                return;
+            }
+
+            const editButton = event.target.closest('.recent-edit');
+            if (editButton) {
+                const kind = editButton.dataset.kind;
+                const id = editButton.dataset.id;
+                if (!kind || !id) return;
+
+                if (kind === 'weigh') {
+                    openCrudModal({
+                        title: 'Edit weigh-in',
+                        bodyHtml: `
+                            <label>Date</label>
+                            <input type="date" name="weigh_date" required value="${editButton.dataset.date || ''}">
+                            <label>Weight (kg)</label>
+                            <input type="number" step="0.1" name="weight_kg" required value="${editButton.dataset.value || ''}">
+                        `,
+                        submitLabel: 'Save changes',
+                        submitKind: 'edit',
+                        url: `/weigh-ins/${id}/edit`,
+                    });
+                    return;
+                }
+
+                if (kind === 'injection') {
+                    openCrudModal({
+                        title: 'Edit injection',
+                        bodyHtml: `
+                            <label>Date</label>
+                            <input type="date" name="injection_date" required value="${editButton.dataset.date || ''}">
+                            <label>Dose (mg)</label>
+                            <input type="number" step="0.1" name="dose_mg" required value="${editButton.dataset.value || ''}">
+                        `,
+                        submitLabel: 'Save changes',
+                        submitKind: 'edit',
+                        url: `/injections/${id}/edit`,
+                    });
+                    return;
+                }
+
+                const workoutTypes = Array.from(document.querySelectorAll('input[name="workout_types"]'))
+                    .map((el) => el.value)
+                    .filter((v, i, arr) => arr.indexOf(v) === i);
+                const existingType = editButton.dataset.type || '';
+                const optionsHtml = workoutTypes
+                    .map((value) => {
+                        const selected = value === existingType ? ' selected' : '';
+                        return `<option value="${value}"${selected}>${value.replace('_', ' ')}</option>`;
+                    })
+                    .join('');
+
+                openCrudModal({
+                    title: 'Edit workout',
+                    bodyHtml: `
+                        <label>Date</label>
+                        <input type="date" name="workout_date" required value="${editButton.dataset.date || ''}">
+                        <label>Workout type</label>
+                        <select name="workout_type" required>${optionsHtml}</select>
+                    `,
+                    submitLabel: 'Save changes',
+                    submitKind: 'edit',
+                    url: `/workouts/${id}/edit`,
+                });
+                return;
+            }
+
+            if (!event.target.closest('[data-recent-menu]')) {
+                document.querySelectorAll('[data-recent-menu].open').forEach((el) => {
+                    el.classList.remove('open');
+                    const btn = el.querySelector('[data-menu-toggle]');
+                    if (btn) btn.setAttribute('aria-expanded', 'false');
+                });
+            }
+        });
+
+        if (crudForm) {
+            crudForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!pendingCrudAction) return;
+
+                const formData = new FormData(crudForm);
+                const payload = {};
+                for (const [k, v] of formData.entries()) {
+                    payload[k] = String(v);
+                }
+                await postRowAction(pendingCrudAction.url, payload);
+            });
+        }
+
+        if (crudCancel) {
+            crudCancel.addEventListener('click', closeCrudModal);
+        }
+
+        if (crudModal) {
+            crudModal.addEventListener('click', (event) => {
+                if (event.target === crudModal) {
+                    closeCrudModal();
+                }
+            });
+        }
+
         buttons.forEach((btn) => {
             btn.addEventListener('click', () => setTab(btn.dataset.tab));
         });
@@ -912,25 +1362,31 @@
             });
         });
 
-        startDateInput.addEventListener('change', () => {
-            insightsState.startDate = startDateInput.value;
-            if (insightsLoaded) void reloadInsights();
-        });
+        if (startDateInput) {
+            startDateInput.addEventListener('change', () => {
+                insightsState.startDate = startDateInput.value;
+                if (insightsLoaded) void reloadInsights();
+            });
+        }
 
-        endDateInput.addEventListener('change', () => {
-            insightsState.endDate = endDateInput.value;
-            if (insightsLoaded) void reloadInsights();
-        });
+        if (endDateInput) {
+            endDateInput.addEventListener('change', () => {
+                insightsState.endDate = endDateInput.value;
+                if (insightsLoaded) void reloadInsights();
+            });
+        }
 
-        resetFiltersButton.addEventListener('click', () => {
-            insightsState.exercise = 'all';
-            insightsState.startDate = '';
-            insightsState.endDate = '';
-            startDateInput.value = '';
-            endDateInput.value = '';
-            renderPillState();
-            if (insightsLoaded) void reloadInsights();
-        });
+        if (resetFiltersButton) {
+            resetFiltersButton.addEventListener('click', () => {
+                insightsState.exercise = 'all';
+                insightsState.startDate = '';
+                insightsState.endDate = '';
+                if (startDateInput) startDateInput.value = '';
+                if (endDateInput) endDateInput.value = '';
+                renderPillState();
+                if (insightsLoaded) void reloadInsights();
+            });
+        }
 
         initializeHistoryCards();
         renderPillState();
