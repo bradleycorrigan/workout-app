@@ -204,6 +204,9 @@ async def home(request: Request) -> HTMLResponse:
     finally:
         await conn.close()
 
+    if summary_row is None:
+        raise RuntimeError("Failed to load summary metrics.")
+
     context = {
         "request": request,
         "workout_options": [
