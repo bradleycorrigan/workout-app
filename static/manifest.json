@@ -1,0 +1,9 @@
+{
+  "name": "Workout App",
+  "short_name": "Workout",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f8fa",
+  "theme_color": "#1f2937",
+  "icons": []
+}

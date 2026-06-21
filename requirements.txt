@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+asyncpg
+python-dotenv
+python-multipart
+jinja2
+pandas
+numpy
+scipy
+plotly
+supabase
+pytest

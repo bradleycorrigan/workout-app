@@ -1,0 +1,31 @@
+<h3 class="chart-heading">📋 Monthly Value and Adherence</h3>
+<div class="table-wrap">
+  <table class="monthly-table">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Value (GBP)</th>
+        <th>Adherence %</th>
+        <th>Workout Days</th>
+        <th>Sessions</th>
+        <th>Gym</th>
+        <th>Pool Swim</th>
+        <th>Lido/Res Swim</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.month }}</td>
+        <td>{{ "%.2f"|format(row.value_gbp) }}</td>
+        <td>{{ "%.2f"|format(row.adherence_pct) }}%</td>
+        <td>{{ row.workout_days }}</td>
+        <td>{{ row.total_sessions }}</td>
+        <td>{{ row.gym }}</td>
+        <td>{{ row.pool_swim }}</td>
+        <td>{{ row.lido_res_swim }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

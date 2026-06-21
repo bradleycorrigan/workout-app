@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        :root {
+            --base3: #fdf6e3;
+            --base2: #eee8d5;
+            --base1: #93a1a1;
+            --base00: #657b83;
+            --base03: #002b36;
+            --forest: #2f6f4f;
+            --forest-deep: #1f5a3f;
+            --mint: #b7d9c3;
+            --glass: rgba(255, 255, 255, 0.28);
+            --glass-strong: rgba(255, 255, 255, 0.43);
+            --glass-line: rgba(47, 111, 79, 0.28);
+            --shadow: 0 14px 40px rgba(0, 43, 54, 0.16);
+            --card-radius: 14px;
+            --card-pad: 14px;
+            --fs-body: 0.98rem;
+            --fs-small: 0.92rem;
+            --pill-border: rgba(47, 111, 79, 0.3);
+            --pill-bg: linear-gradient(140deg, rgba(255, 255, 255, 0.62), rgba(183, 217, 195, 0.4));
+            --pill-bg-active: linear-gradient(135deg, var(--forest), var(--forest-deep));
+            --pill-ink: #1f5a3f;
+            --pill-shadow: 0 8px 18px rgba(0, 43, 54, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
+            color: var(--base03);
+            background:
+                radial-gradient(1400px 640px at 12% -18%, rgba(47, 111, 79, 0.34), transparent 55%),
+                radial-gradient(1000px 560px at 95% -8%, rgba(88, 110, 117, 0.26), transparent 52%),
+                radial-gradient(900px 440px at 72% 18%, rgba(183, 217, 195, 0.3), transparent 58%),
+                linear-gradient(180deg, #fdf6e3, #f5edd6 52%, #efe6cc 100%);
+            min-height: 100vh;
+            background-attachment: fixed;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: -20% -10% auto -10%;
+            height: 70vh;
+            pointer-events: none;
+            background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.45), transparent 60%);
+            filter: blur(18px);
+            animation: ambientGlow 14s ease-in-out infinite alternate;
+            z-index: 0;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 22px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .hero p {
+            margin: 0;
+            color: var(--base00);
+            font-size: 0.96rem;
+        }
+
+        h1 {
+            margin: 0 0 14px;
+            font-size: 2.2rem;
+            letter-spacing: 0.3px;
+            font-family: "Fraunces", Georgia, serif;
+            font-weight: 700;
+            color: #16313a;
+        }
+
+        h2,
+        h3 {
+            font-family: "Fraunces", Georgia, serif;
+            letter-spacing: 0.2px;
+            color: #183843;
+            font-weight: 700;
+        }
+
+        .tabs {
+            display: inline-flex;
+            gap: 8px;
+            padding: 7px;
+            border-radius: 14px;
+            background: var(--glass);
+            border: 1px solid var(--glass-line);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+            margin-bottom: 18px;
+        }
+
+        .tab-btn {
+            padding: 9px 14px;
+            font-weight: 700;
+            color: var(--base00);
+            min-width: 104px;
+        }
+
+        .tab-btn.active {
+            background: var(--pill-bg-active);
+            color: #ecf8ef;
+            border-color: rgba(31, 90, 63, 0.9);
+            box-shadow: 0 12px 24px rgba(31, 90, 63, 0.24);
+        }
+
+        .tab-btn:hover {
+            color: var(--base00);
+            background: linear-gradient(140deg, rgba(255, 255, 255, 0.72), rgba(183, 217, 195, 0.4));
+        }
+
+        .tab-btn.active:hover {
+            color: #ecf8ef;
+            background: var(--pill-bg-active);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .summary-grid,
+        .form-grid,
+        .history-grid,
+        .chart-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(3, minmax(160px, 1fr));
+            margin-bottom: 16px;
+        }
+
+        .form-grid {
+            grid-template-columns: repeat(3, minmax(260px, 1fr));
+            margin-bottom: 18px;
+            align-items: stretch;
+        }
+
+        .history-grid {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            margin: 18px 0;
+        }
+
+        .chart-grid {
+            grid-template-columns: 1fr;
+            margin-top: 12px;
+        }
+
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--glass-line);
+            border-radius: var(--card-radius);
+            padding: var(--card-pad);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            position: relative;
+            overflow: hidden;
+            transform: translateY(0);
+            transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(120deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 42%);
+            opacity: 0.52;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(47, 111, 79, 0.4);
+            box-shadow: 0 16px 34px rgba(0, 43, 54, 0.16);
+        }
+
+        .chart-grid .card::before {
+            opacity: 0.28;
+        }
+
+        .form-card {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-card form {
+            flex: 1;
+        }
+
+        .metric-label {
+            color: var(--base00);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-top: 4px;
+            color: var(--forest-deep);
+        }
+
+        .metric-tile {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(183, 217, 195, 0.44));
+            border-color: rgba(47, 111, 79, 0.32);
+        }
+
+        .summary-grid .metric-tile:nth-child(2) {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(202, 225, 238, 0.48));
+        }
+
+        .summary-grid .metric-tile:nth-child(3) {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(218, 231, 201, 0.5));
+        }
+
+        .insight-filters {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .is-collapsed {
+            display: none !important;
+        }
+
+        .insight-filters-toggle {
+            margin: 0 0 12px;
+            padding: 8px 12px;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .filter-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: var(--base00);
+        }
+
+        .filter-pill-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .liquid-pill {
+            border: 1px solid var(--pill-border);
+            border-radius: 999px;
+            background: var(--pill-bg);
+            color: var(--pill-ink);
+            cursor: pointer;
+            box-shadow: var(--pill-shadow);
+            backdrop-filter: blur(8px);
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background 140ms ease;
+        }
+
+        .liquid-pill:hover {
+            transform: translateY(-1px);
+            border-color: rgba(47, 111, 79, 0.5);
+            box-shadow: 0 11px 20px rgba(0, 43, 54, 0.14);
+        }
+
+        .liquid-pill.active {
+            color: #ecf8ef;
+            background: var(--pill-bg-active);
+            border-color: rgba(31, 90, 63, 0.9);
+            box-shadow: 0 12px 24px rgba(31, 90, 63, 0.28);
+        }
+
+        .filter-pill {
+            padding: 7px 12px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .filter-date-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-date {
+            max-width: 220px;
+            border-radius: 999px;
+            border: 1px solid rgba(47, 111, 79, 0.3);
+            background: linear-gradient(140deg, rgba(255, 255, 255, 0.62), rgba(183, 217, 195, 0.26));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+        }
+
+        .filter-reset {
+            padding: 8px 12px;
+            font-size: 0.84rem;
+            background: linear-gradient(140deg, #4a5f67, #2f3d44);
+            box-shadow: 0 8px 18px rgba(0, 43, 54, 0.18);
+            color: #f2f7f8;
+            border-color: rgba(47, 111, 79, 0.28);
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            border: 1px solid #b9c8de;
+            border-radius: 8px;
+            padding: 9px;
+            font-size: var(--fs-body);
+            background: var(--glass-strong);
+            color: var(--base03);
+        }
+
+        select {
+            min-height: 88px;
+        }
+
+        .workout-options {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .workout-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--glass-line);
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.25);
+            font-size: var(--fs-small);
+        }
+
+        .workout-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            accent-color: #0b76d1;
+        }
+
+        .workout-option:hover {
+            border-color: rgba(47, 111, 79, 0.5);
+            background: rgba(183, 217, 195, 0.3);
+        }
+
+        .workout-label {
+            text-transform: capitalize;
+            letter-spacing: 0.2px;
+        }
+
+        .insight-slot {
+            min-height: 380px;
+            width: 100%;
+        }
+
+        .insight-slot.table-slot {
+            min-height: 240px;
+        }
+
+        button {
+            border: none;
+            border-radius: 9px;
+            padding: 10px;
+            background: linear-gradient(135deg, var(--forest), var(--forest-deep));
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+            box-shadow: 0 8px 20px rgba(47, 111, 79, 0.25);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            filter: saturate(1.08);
+            box-shadow: 0 12px 24px rgba(47, 111, 79, 0.32);
+        }
+
+        .form-card button {
+            margin-top: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.94rem;
+        }
+
+        th,
+        td {
+            border-bottom: 1px solid #e9eef6;
+            padding: 7px 4px;
+            text-align: left;
+        }
+
+        th {
+            color: var(--base00);
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .muted {
+            color: var(--base00);
+            font-size: var(--fs-small);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 10px;
+        }
+
+        .history-scroll {
+            max-height: none;
+            overflow-y: visible;
+        }
+
+        .history-toggle {
+            margin-top: 10px;
+            padding: 8px 10px;
+            font-size: var(--fs-small);
+            font-weight: 600;
+        }
+
+        .monthly-table thead th {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(6px);
+        }
+
+        .chart-heading {
+            margin: 0 0 10px;
+            font-family: "Fraunces", Georgia, serif;
+            font-size: 16px;
+            line-height: 1.2;
+            font-weight: 700;
+            color: #10363f;
+            letter-spacing: 0.2px;
+        }
+
+        @media (max-width: 720px) {
+            .page {
+                padding: 14px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .summary-grid,
+            .form-grid,
+            .history-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .workout-options {
+                grid-template-columns: 1fr;
+            }
+
+            .hero {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .filter-date {
+                max-width: none;
+                width: 100%;
+            }
+
+            .filter-date-row {
+                align-items: stretch;
+            }
+        }
+
+        @media (min-width: 721px) and (max-width: 1100px) {
+            .summary-grid {
+                grid-template-columns: repeat(3, minmax(150px, 1fr));
+            }
+
+            .form-grid,
+            .history-grid {
+                grid-template-columns: repeat(2, minmax(260px, 1fr));
+            }
+        }
+
+        @keyframes ambientGlow {
+            0% {
+                transform: translateY(-8px) scale(1);
+                opacity: 0.76;
+            }
+            100% {
+                transform: translateY(10px) scale(1.08);
+                opacity: 0.96;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <header class="hero">
+            <div>
+                <h1>Pulseboard ✨</h1>
+                <p>A high-signal training and health cockpit for long-term consistency.</p>
+            </div>
+        </header>
+
+        <nav class="tabs" role="tablist" aria-label="Dashboard Tabs">
+            <button class="tab-btn liquid-pill" type="button" data-tab="log">📝 Log</button>
+            <button class="tab-btn liquid-pill" type="button" data-tab="insights">📊 Insights</button>
+        </nav>
+
+        <section id="tab-log" class="tab-panel" role="tabpanel">
+        <section class="summary-grid">
+            <article class="card metric-tile">
+                <div class="metric-label">💪 Workouts ({{ month_label }})</div>
+                <div class="metric-value">{{ month_workouts }}</div>
+            </article>
+            <article class="card metric-tile">
+                <div class="metric-label">⚖️ Weigh-ins ({{ month_label }})</div>
+                <div class="metric-value">{{ month_weigh_ins }}</div>
+            </article>
+            <article class="card metric-tile">
+                <div class="metric-label">💷 Workout Value GBP ({{ month_label }})</div>
+                <div class="metric-value">{{ "%.2f"|format(month_value_gbp) }}</div>
+            </article>
+        </section>
+
+        <section class="form-grid">
+            <div class="card form-card">
+                <h3>⚖️ Log Weigh-in</h3>
+                <form hx-post="/weigh-ins" hx-target="#weigh-in-result" hx-on::after-request="window.location.reload()">
+                    <input type="date" name="weigh_date" required>
+                    <input type="number" step="0.1" name="weight_kg" placeholder="Weight (kg)" required>
+                    <button type="submit">Save</button>
+                </form>
+                <div id="weigh-in-result"></div>
+            </div>
+
+            <div class="card form-card">
+                <h3>💉 Log Injection</h3>
+                <form hx-post="/injections" hx-target="#injection-result" hx-on::after-request="window.location.reload()">
+                    <input type="date" name="injection_date" required>
+                    <input type="number" step="0.1" name="dose_mg" placeholder="Dose (mg)" required>
+                    <button type="submit">Save</button>
+                </form>
+                <div id="injection-result"></div>
+            </div>
+
+            <div class="card form-card">
+                <h3>🏋️ Log Workout</h3>
+                <form hx-post="/workouts" hx-target="#workout-result" hx-on::after-request="window.location.reload()">
+                    <input type="date" name="workout_date" required>
+                    <div class="workout-options">
+                        {% for w in workout_options %}
+                            <label class="workout-option">
+                                <input type="checkbox" name="workout_types" value="{{ w.value }}">
+                                <span class="workout-label">{{ w.value.replace('_', ' ') }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <button type="submit">Save</button>
+                </form>
+                <div id="workout-result"></div>
+            </div>
+        </section>
+
+        <section class="history-grid">
+            <article class="card">
+                <h3>📉 Recent Weigh-ins</h3>
+                {% if weigh_history %}
+                    <div class="table-wrap history-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>Date</th><th>Kg</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in weigh_history %}
+                                    <tr>
+                                        <td>{{ row.weigh_date }}</td>
+                                        <td>{{ row.weight_kg }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="history-toggle liquid-pill" data-step="10" aria-expanded="false">See more</button>
+                {% else %}
+                    <p class="muted">No weigh-ins yet.</p>
+                {% endif %}
+            </article>
+
+            <article class="card">
+                <h3>🧪 Recent Injections</h3>
+                {% if injection_history %}
+                    <div class="table-wrap history-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>Date</th><th>Dose (mg)</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in injection_history %}
+                                    <tr>
+                                        <td>{{ row.injection_date }}</td>
+                                        <td>{{ row.dose_mg }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="history-toggle liquid-pill" data-step="10" aria-expanded="false">See more</button>
+                {% else %}
+                    <p class="muted">No injections yet.</p>
+                {% endif %}
+            </article>
+
+            <article class="card">
+                <h3>🔥 Recent Workouts</h3>
+                {% if workout_history %}
+                    <div class="table-wrap history-scroll">
+                        <table>
+                            <thead>
+                                <tr><th>Date</th><th>Type</th><th>GBP</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for row in workout_history %}
+                                    <tr>
+                                        <td>{{ row.workout_date }}</td>
+                                        <td>{{ row.workout_type }}</td>
+                                        <td>{{ row.workout_value_gbp }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="history-toggle liquid-pill" data-step="10" aria-expanded="false">See more</button>
+                {% else %}
+                    <p class="muted">No workouts yet.</p>
+                {% endif %}
+            </article>
+        </section>
+        </section>
+
+        <section id="tab-insights" class="tab-panel" role="tabpanel">
+        <button
+            id="insight-filters-toggle"
+            type="button"
+            class="insight-filters-toggle liquid-pill"
+            aria-expanded="false"
+            aria-controls="insight-filters-panel"
+        >
+            Show filters
+        </button>
+
+        <section id="insight-filters-panel" class="insight-filters card is-collapsed">
+            <div>
+                <div class="filter-label">Exercise</div>
+                <div class="filter-pill-row">
+                    <button type="button" class="filter-pill liquid-pill active" data-exercise="all">All</button>
+                    <button type="button" class="filter-pill liquid-pill" data-exercise="gym">Gym</button>
+                    <button type="button" class="filter-pill liquid-pill" data-exercise="pool_swim">Pool Swim</button>
+                    <button type="button" class="filter-pill liquid-pill" data-exercise="lido_res_swim">Lido/Res Swim</button>
+                </div>
+            </div>
+            <div>
+                <div class="filter-label">Date Range</div>
+                <div class="filter-date-row">
+                    <input id="filter-start-date" class="filter-date" type="date" aria-label="Filter start date">
+                    <input id="filter-end-date" class="filter-date" type="date" aria-label="Filter end date">
+                    <button id="filter-reset" type="button" class="filter-reset liquid-pill">Reset Filters</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="chart-grid">
+            <div class="card">
+                <div class="insight-slot" data-insight-src="/charts/concentration">Loading concentration chart...</div>
+            </div>
+            <div class="card">
+                <div class="insight-slot" data-insight-src="/charts/weight-trend">Loading weight chart...</div>
+            </div>
+            <div class="card">
+                <div class="insight-slot" data-insight-src="/charts/workout-heatmap">Loading workout heatmap...</div>
+            </div>
+            <div class="card">
+                <div class="insight-slot" data-insight-src="/charts/workout-mix">Loading monthly workout mix chart...</div>
+            </div>
+            <div class="card">
+                <div class="insight-slot table-slot" data-insight-src="/tables/monthly-summary">Loading monthly value/adherence summary...</div>
+            </div>
+        </section>
+        </section>
+    </main>
+
+    <script>
+        function applyHistoryVisibility(scrollBox, visibleCount) {
+            const rows = Array.from(scrollBox.querySelectorAll('tbody tr'));
+            rows.forEach((row, index) => {
+                row.style.display = index < visibleCount ? '' : 'none';
+            });
+        }
+
+        function updateHistoryButton(button, visibleCount, totalRows) {
+            if (totalRows <= 10) {
+                button.style.display = 'none';
+                return;
+            }
+
+            const step = Number(button.dataset.step || '10');
+            const remaining = Math.max(totalRows - visibleCount, 0);
+            const expanded = visibleCount >= totalRows;
+            button.textContent = expanded ? 'Show less' : `See ${Math.min(step, remaining)} more`;
+            button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        }
+
+        function initializeHistoryCards() {
+            document.querySelectorAll('.card').forEach((card) => {
+                const scrollBox = card.querySelector('.history-scroll');
+                const button = card.querySelector('.history-toggle');
+                if (!scrollBox || !button) return;
+
+                const rows = Array.from(scrollBox.querySelectorAll('tbody tr'));
+                const totalRows = rows.length;
+                const initialVisible = Math.min(10, totalRows);
+
+                scrollBox.dataset.totalRows = String(totalRows);
+                scrollBox.dataset.visibleRows = String(initialVisible);
+                applyHistoryVisibility(scrollBox, initialVisible);
+                updateHistoryButton(button, initialVisible, totalRows);
+            });
+        }
+
+        function toggleHistory(button) {
+            const card = button.closest('.card');
+            if (!card) return;
+            const scrollBox = card.querySelector('.history-scroll');
+            if (!scrollBox) return;
+
+            const step = Number(button.dataset.step || '10');
+            const totalRows = Number(scrollBox.dataset.totalRows || '0');
+            let visibleRows = Number(scrollBox.dataset.visibleRows || '10');
+
+            if (visibleRows < totalRows) {
+                visibleRows = Math.min(visibleRows + step, totalRows);
+            } else {
+                visibleRows = Math.min(10, totalRows);
+            }
+
+            scrollBox.dataset.visibleRows = String(visibleRows);
+            applyHistoryVisibility(scrollBox, visibleRows);
+            updateHistoryButton(button, visibleRows, totalRows);
+        }
+
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('.history-toggle');
+            if (!button) return;
+            toggleHistory(button);
+        });
+
+        const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+        const panels = {
+            log: document.getElementById('tab-log'),
+            insights: document.getElementById('tab-insights'),
+        };
+        const startDateInput = document.getElementById('filter-start-date');
+        const endDateInput = document.getElementById('filter-end-date');
+        const resetFiltersButton = document.getElementById('filter-reset');
+        const filtersToggleButton = document.getElementById('insight-filters-toggle');
+        const filtersPanel = document.getElementById('insight-filters-panel');
+        const filterPills = Array.from(document.querySelectorAll('.filter-pill'));
+        const insightsState = {
+            exercise: 'all',
+            startDate: '',
+            endDate: '',
+        };
+        let insightsLoaded = false;
+
+        function getInsightsQuery() {
+            const params = new URLSearchParams();
+            params.set('exercise', insightsState.exercise);
+            if (insightsState.startDate) params.set('start_date', insightsState.startDate);
+            if (insightsState.endDate) params.set('end_date', insightsState.endDate);
+            return params.toString();
+        }
+
+        function renderPillState() {
+            filterPills.forEach((pill) => {
+                pill.classList.toggle('active', pill.dataset.exercise === insightsState.exercise);
+            });
+        }
+
+        function setFiltersPanelOpen(isOpen) {
+            if (!filtersPanel || !filtersToggleButton) return;
+            filtersPanel.classList.toggle('is-collapsed', !isOpen);
+            filtersToggleButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            filtersToggleButton.textContent = isOpen ? 'Hide filters' : 'Show filters';
+        }
+
+        async function renderInsightSlot(el, url) {
+            try {
+                const response = await fetch(url, { headers: { 'HX-Request': 'true' } });
+                if (!response.ok) {
+                    el.innerHTML = '<p class="muted">Unable to load this insight right now.</p>';
+                    return;
+                }
+                const html = await response.text();
+                el.innerHTML = html;
+
+                // Ensure inline scripts in Plotly HTML fragments execute after insertion.
+                Array.from(el.querySelectorAll('script')).forEach((oldScript) => {
+                    const newScript = document.createElement('script');
+                    Array.from(oldScript.attributes).forEach((attr) => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+                    newScript.text = oldScript.text;
+                    oldScript.replaceWith(newScript);
+                });
+            } catch {
+                el.innerHTML = '<p class="muted">Unable to load this insight right now.</p>';
+            }
+        }
+
+        async function reloadInsights() {
+            const query = getInsightsQuery();
+            const slots = Array.from(document.querySelectorAll('[data-insight-src]'));
+
+            for (const el of slots) {
+                const src = el.getAttribute('data-insight-src');
+                const url = query ? `${src}?${query}` : src;
+                await renderInsightSlot(el, url);
+            }
+
+            insightsLoaded = true;
+        }
+
+        async function loadInsightsOnce() {
+            if (insightsLoaded) return;
+            await reloadInsights();
+        }
+
+        function setTab(tabName) {
+            buttons.forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+            Object.entries(panels).forEach(([name, panel]) => {
+                panel.classList.toggle('active', name === tabName);
+            });
+            if (tabName === 'insights') {
+                void loadInsightsOnce();
+            }
+            window.location.hash = tabName;
+        }
+
+        buttons.forEach((btn) => {
+            btn.addEventListener('click', () => setTab(btn.dataset.tab));
+        });
+
+        if (filtersToggleButton) {
+            filtersToggleButton.addEventListener('click', () => {
+                const isOpen = filtersPanel ? filtersPanel.classList.contains('is-collapsed') : false;
+                setFiltersPanelOpen(isOpen);
+            });
+        }
+
+        filterPills.forEach((pill) => {
+            pill.addEventListener('click', () => {
+                insightsState.exercise = pill.dataset.exercise || 'all';
+                renderPillState();
+                if (insightsLoaded) void reloadInsights();
+            });
+        });
+
+        startDateInput.addEventListener('change', () => {
+            insightsState.startDate = startDateInput.value;
+            if (insightsLoaded) void reloadInsights();
+        });
+
+        endDateInput.addEventListener('change', () => {
+            insightsState.endDate = endDateInput.value;
+            if (insightsLoaded) void reloadInsights();
+        });
+
+        resetFiltersButton.addEventListener('click', () => {
+            insightsState.exercise = 'all';
+            insightsState.startDate = '';
+            insightsState.endDate = '';
+            startDateInput.value = '';
+            endDateInput.value = '';
+            renderPillState();
+            if (insightsLoaded) void reloadInsights();
+        });
+
+        initializeHistoryCards();
+        renderPillState();
+        setFiltersPanelOpen(false);
+
+        const initial = window.location.hash === '#insights' ? 'insights' : 'log';
+        setTab(initial);
+    </script>
+</body>
+</html>
+
