@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
     <style>
         :root {
             --base3: #fdf6e3;
@@ -384,13 +384,47 @@
             letter-spacing: 0.2px;
         }
 
+        .insight-chart-card {
+            padding: 12px;
+            border-radius: 16px;
+        }
+
         .insight-slot {
-            min-height: 380px;
+            min-height: 360px;
             width: 100%;
+            border-radius: 12px;
+            padding: 6px;
+            background: linear-gradient(155deg, rgba(255, 255, 255, 0.36), rgba(183, 217, 195, 0.2));
+            border: 1px solid rgba(47, 111, 79, 0.18);
+            overflow: hidden;
         }
 
         .insight-slot.table-slot {
             min-height: 240px;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
+        .insight-slot .js-plotly-plot,
+        .insight-slot .plot-container,
+        .insight-slot .svg-container {
+            width: 100% !important;
+        }
+
+        .insight-slot .main-svg {
+            border-radius: 10px;
+        }
+
+        .echart-canvas {
+            width: 100%;
+            min-height: 300px;
+            touch-action: pan-y;
+        }
+
+        .modebar,
+        .js-plotly-plot .modebar-container {
+            display: none !important;
         }
 
         button {
@@ -655,6 +689,24 @@
 
             .filter-date-row {
                 align-items: stretch;
+            }
+
+            .chart-grid {
+                gap: 12px;
+            }
+
+            .insight-chart-card {
+                padding: 10px;
+                border-radius: 14px;
+            }
+
+            .insight-slot {
+                min-height: 320px;
+                padding: 4px;
+            }
+
+            .insight-slot.table-slot {
+                min-height: 220px;
             }
         }
 
@@ -943,19 +995,19 @@
         </section>
 
         <section class="chart-grid">
-            <div class="card">
+            <div class="card insight-chart-card">
                 <div class="insight-slot" data-insight-src="/charts/concentration">Loading concentration chart...</div>
             </div>
-            <div class="card">
+            <div class="card insight-chart-card">
                 <div class="insight-slot" data-insight-src="/charts/weight-trend">Loading weight chart...</div>
             </div>
-            <div class="card">
+            <div class="card insight-chart-card">
                 <div class="insight-slot" data-insight-src="/charts/workout-heatmap">Loading workout heatmap...</div>
             </div>
-            <div class="card">
+            <div class="card insight-chart-card">
                 <div class="insight-slot" data-insight-src="/charts/workout-mix">Loading monthly workout mix chart...</div>
             </div>
-            <div class="card">
+            <div class="card insight-chart-card">
                 <div class="insight-slot table-slot" data-insight-src="/tables/monthly-summary">Loading monthly value/adherence summary...</div>
             </div>
         </section>
@@ -1116,6 +1168,8 @@
             params.set('exercise', insightsState.exercise);
             if (insightsState.startDate) params.set('start_date', insightsState.startDate);
             if (insightsState.endDate) params.set('end_date', insightsState.endDate);
+            const isMobileViewport = window.matchMedia('(max-width: 720px)').matches;
+            if (isMobileViewport) params.set('mobile', '1');
             return params.toString();
         }
 

@@ -1,4 +1,6 @@
 import os
+import json
+import uuid
 from calendar import monthrange
 from datetime import date
 from typing import Any
@@ -11,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Query, Request
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from concentration import calculate_concentration
@@ -45,7 +48,18 @@ WORKOUT_DISPLAY: dict[str, str] = {
     "sauna": "Sauna",
 }
 
+WORKOUT_SHORT_DISPLAY: dict[str, str] = {
+    "gym": "Gym",
+    "gym_kgx": "Gym KGX",
+    "swim": "Pool",
+    "swim_kgx": "Pool KGX",
+    "lido_swim": "Lido",
+    "reservoir": "Reservoir",
+    "sauna": "Sauna",
+}
+
 app = FastAPI(title="Workout Dashboard")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 THEME = {
@@ -56,6 +70,76 @@ THEME = {
     "green": "#2f6f4f",
 }
 CHART_TITLE_SIZE = 16
+
+
+def is_mobile_request(request: Request, mobile: str | None) -> bool:
+    if mobile is not None:
+        normalized = mobile.strip().lower()
+        return normalized in {"1", "true", "yes", "y", "mobile"}
+
+    user_agent = request.headers.get("user-agent", "").lower()
+    mobile_tokens = ["iphone", "android", "mobile", "ipad", "ipod"]
+    return any(token in user_agent for token in mobile_tokens)
+
+
+def render_chart_response(fig: go.Figure, mobile: bool, chart_kind: str = "default") -> HTMLResponse:
+    base_config: dict[str, Any] = {
+        "responsive": True,
+        "displaylogo": False,
+        "scrollZoom": False,
+        "doubleClick": "reset",
+        "modeBarButtonsToRemove": [
+            "lasso2d",
+            "select2d",
+            "autoScale2d",
+            "toggleSpikelines",
+        ],
+    }
+
+    if mobile:
+        fig.update_layout(
+            height=330 if chart_kind != "heatmap" else 380,
+            margin=dict(l=12, r=10, t=48, b=36),
+            font=dict(size=13),
+            legend=dict(font=dict(size=10)),
+        )
+        fig.update_xaxes(automargin=True, tickfont=dict(size=11), title_font=dict(size=12))
+        fig.update_yaxes(automargin=True, tickfont=dict(size=11), title_font=dict(size=12))
+        base_config["displayModeBar"] = False
+        base_config["showTips"] = False
+    else:
+        base_config["displayModeBar"] = "hover"
+
+    html = fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        config=base_config,
+    )
+    return HTMLResponse(html)
+
+
+def render_echarts_response(option: dict[str, Any], height: int = 340) -> HTMLResponse:
+        chart_id = f"echart-{uuid.uuid4().hex}"
+        option_json = json.dumps(option)
+        html = f"""
+<div id="{chart_id}" class="echart-canvas" style="height:{height}px;"></div>
+<script>
+(() => {{
+    const el = document.getElementById('{chart_id}');
+    if (!el || !window.echarts) return;
+    const chart = echarts.init(el, null, {{ renderer: 'canvas' }});
+    const option = {option_json};
+    chart.setOption(option);
+    const resize = () => chart.resize();
+    if (window.ResizeObserver) {{
+        const ro = new ResizeObserver(resize);
+        ro.observe(el);
+    }}
+    window.addEventListener('resize', resize, {{ passive: true }});
+}})();
+</script>
+"""
+        return HTMLResponse(html)
 
 
 async def get_connection() -> asyncpg.Connection:
@@ -80,6 +164,72 @@ def normalize_exercise_filter(exercise: str | None) -> str:
     normalized = exercise.strip().lower()
     allowed = {"all", "gym", "pool_swim", "lido_res_swim"}
     return normalized if normalized in allowed else "all"
+
+
+def compact_workout_label(workout_types: list[str], mobile: bool) -> str:
+    labels: list[str] = []
+    for workout_type in workout_types:
+        short = WORKOUT_SHORT_DISPLAY.get(str(workout_type), str(workout_type))
+        if short not in labels:
+            labels.append(short)
+
+    if not labels:
+        return ""
+    if mobile:
+        return labels[0] if len(labels) == 1 else f"{labels[0]} +"
+    if len(labels) <= 2:
+        return " + ".join(labels)
+    return f"{labels[0]} +{len(labels) - 1}"
+
+
+def to_iso(d: date | None) -> str | None:
+    return d.isoformat() if d is not None else None
+
+
+def build_monthly_summary_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
+    by_month = df.groupby("month", as_index=False).agg(
+        value_gbp=("workout_value_gbp", "sum"),
+        workout_days=("workout_date", lambda s: s.dt.date.nunique()),
+        total_sessions=("workout_type", "count"),
+    )
+
+    by_type = (
+        df.groupby(["month", "bucket"])
+        .size()
+        .unstack(fill_value=0)
+        .reset_index()
+    )
+    for col in ["Gym", "Pool Swim", "Lido/Res Swim"]:
+        if col not in by_type.columns:
+            by_type[col] = 0
+
+    merged = by_month.merge(by_type[["month", "Gym", "Pool Swim", "Lido/Res Swim"]], on="month", how="left")
+
+    def adherence_pct(month_str: str, workout_days: int) -> float:
+        y, m = month_str.split("-")
+        return round((workout_days / monthrange(int(y), int(m))[1]) * 100.0, 2)
+
+    merged["adherence_pct"] = merged.apply(
+        lambda r: adherence_pct(str(r["month"]), int(r["workout_days"])),
+        axis=1,
+    )
+    merged = merged.sort_values("month", ascending=False)
+
+    rows: list[dict[str, Any]] = []
+    for _, row in merged.iterrows():
+        rows.append(
+            {
+                "month": str(row["month"]),
+                "value_gbp": float(row["value_gbp"]),
+                "adherence_pct": float(row["adherence_pct"]),
+                "workout_days": int(row["workout_days"]),
+                "total_sessions": int(row["total_sessions"]),
+                "gym": int(row["Gym"]),
+                "pool_swim": int(row["Pool Swim"]),
+                "lido_res_swim": int(row["Lido/Res Swim"]),
+            }
+        )
+    return rows
 
 
 def apply_date_window(df: pd.DataFrame, date_col: str, start_date: date | None, end_date: date | None) -> pd.DataFrame:
@@ -133,8 +283,8 @@ def apply_chart_theme(fig: go.Figure, title: str, y_title: str = "") -> go.Figur
     return fig
 
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request) -> HTMLResponse:
+@app.get("/legacy", response_class=HTMLResponse)
+async def home_legacy(request: Request) -> HTMLResponse:
     conn = await get_connection()
     try:
         weigh_history = rows_to_dicts(
@@ -222,6 +372,68 @@ async def home(request: Request) -> HTMLResponse:
         "month_value_gbp": float(summary_row["month_value_gbp"]),
     }
     return templates.TemplateResponse(request=request, name="index.html", context=context)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def home_log(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request=request, name="v2_log.html", context={"request": request})
+
+
+@app.get("/insights", response_class=HTMLResponse)
+@app.get("/v2", response_class=HTMLResponse)
+async def home_insights(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request=request, name="v2.html", context={"request": request})
+
+
+@app.get("/api/summary")
+async def dashboard_summary() -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        summary_row = await conn.fetchrow(
+            """
+            SELECT
+                TO_CHAR(CURRENT_DATE, 'Mon YYYY') AS month_label,
+                (
+                    SELECT COUNT(*)
+                    FROM workouts
+                    WHERE user_id = $1
+                      AND workout_date >= DATE_TRUNC('month', CURRENT_DATE)::date
+                      AND workout_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
+                ) AS month_workouts,
+                (
+                    SELECT COUNT(*)
+                    FROM weigh_ins
+                    WHERE user_id = $1
+                      AND weigh_date >= DATE_TRUNC('month', CURRENT_DATE)::date
+                      AND weigh_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
+                ) AS month_weigh_ins,
+                (
+                    SELECT ROUND(COALESCE(SUM(workout_value_gbp), 0)::numeric, 2)
+                    FROM workouts
+                    WHERE user_id = $1
+                      AND workout_date >= DATE_TRUNC('month', CURRENT_DATE)::date
+                      AND workout_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
+                ) AS month_value_gbp
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    if summary_row is None:
+        return {
+            "month_label": "",
+            "month_workouts": 0,
+            "month_weigh_ins": 0,
+            "month_value_gbp": 0.0,
+        }
+
+    return {
+        "month_label": str(summary_row["month_label"]),
+        "month_workouts": int(summary_row["month_workouts"]),
+        "month_weigh_ins": int(summary_row["month_weigh_ins"]),
+        "month_value_gbp": float(summary_row["month_value_gbp"]),
+    }
 
 
 @app.post("/weigh-ins", response_class=HTMLResponse)
@@ -477,9 +689,11 @@ async def edit_workout(
 
 @app.get("/charts/concentration", response_class=HTMLResponse)
 async def concentration_chart(
+    request: Request,
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
+    mobile: str | None = Query(default=None),
 ) -> HTMLResponse:
     conn = await get_connection()
     try:
@@ -505,30 +719,56 @@ async def concentration_chart(
         return HTMLResponse("<p>No injection data for the selected filters.</p>")
 
     _ = normalize_exercise_filter(exercise)
-    curve = calculate_concentration(df, days_forecast=21)
-
-    fig = px.line(
-        curve,
-        x="date",
-        y="estimated_concentration",
-        title="",
-        markers=True,
-        line_shape="spline",
-    )
-    fig.update_traces(
-        line=dict(color="#1f5a3f", width=4),
-        marker=dict(size=6, color="#2d7a56", line=dict(color="#fdf6e3", width=1.5)),
-    )
-    apply_chart_theme(fig, "🧬 Estimated Concentration", "Estimated level")
-    fig.update_xaxes(title="Date")
-    return HTMLResponse(fig.to_html(full_html=False, include_plotlyjs=False))
+    curve = calculate_concentration(df, days_forecast=21).sort_values("date")
+    is_mobile = is_mobile_request(request, mobile)
+    series_data = [
+        [d.strftime("%Y-%m-%d"), float(v)]
+        for d, v in zip(curve["date"], curve["estimated_concentration"])
+    ]
+    option: dict[str, Any] = {
+        "backgroundColor": "transparent",
+        "animationDuration": 500,
+        "title": {
+            "text": "Estimated Concentration",
+            "left": 0,
+            "top": 0,
+            "textStyle": {"fontSize": 16 if is_mobile else 18, "fontWeight": 700, "color": "#16313a"},
+        },
+        "grid": {"left": 14, "right": 14, "top": 48, "bottom": 32, "containLabel": True},
+        "tooltip": {"trigger": "axis"},
+        "xAxis": {
+            "type": "time",
+            "axisLabel": {"fontSize": 11 if is_mobile else 12, "hideOverlap": True},
+        },
+        "yAxis": {
+            "type": "value",
+            "name": "Estimated level",
+            "nameTextStyle": {"fontSize": 11 if is_mobile else 12},
+            "splitLine": {"lineStyle": {"color": "rgba(88,110,117,0.22)"}},
+        },
+        "series": [
+            {
+                "name": "Estimated Concentration",
+                "type": "line",
+                "smooth": 0.35,
+                "showSymbol": not is_mobile,
+                "symbolSize": 6,
+                "lineStyle": {"width": 3, "color": "#1f5a3f"},
+                "areaStyle": {"color": "rgba(47,111,79,0.14)"},
+                "data": series_data,
+            }
+        ],
+    }
+    return render_echarts_response(option, height=320 if is_mobile else 360)
 
 
 @app.get("/charts/weight-trend", response_class=HTMLResponse)
 async def weight_trend_chart(
+    request: Request,
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
+    mobile: str | None = Query(default=None),
 ) -> HTMLResponse:
     conn = await get_connection()
     try:
@@ -566,60 +806,57 @@ async def weight_trend_chart(
     y_min = int((min_w - 2) // 5 * 5)
     y_max = int((max_w + 2 + 4) // 5 * 5)
 
-    delta_labels = [
-        "0" if i == 0 else (f"+{d}" if d > 0 else f"{d}")
-        for i, d in enumerate(df["delta"].tolist())
+    is_mobile = is_mobile_request(request, mobile)
+    series_data = [
+        [d.strftime("%Y-%m-%d"), float(v)]
+        for d, v in zip(df["weigh_date"], df["weight_kg"])
     ]
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=df["weigh_date"],
-            y=df["weight_kg"],
-            name="Weight (kg)",
-            mode="lines+markers",
-            line=dict(color="#1e355b", width=4, shape="spline", smoothing=0.6),
-            marker=dict(size=8, symbol="x", color="#1e355b"),
-            fill="tozeroy",
-            fillcolor="rgba(100, 144, 199, 0.16)",
-        ),
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["weigh_date"],
-            y=df["weight_kg"] - 0.8,
-            mode="text",
-            text=delta_labels,
-            textfont=dict(color="#2f6f4f", size=14, family="Inter, sans-serif"),
-            textposition="bottom center",
-            name="Difference",
-            hoverinfo="skip",
-        )
-    )
-    fig.update_layout(
-        title=dict(
-            text="⚖️ Weight (kg) and Difference",
-            x=0.02,
-            xanchor="left",
-            font=dict(family="Fraunces, Georgia, serif", size=CHART_TITLE_SIZE, color=THEME["ink"]),
-        ),
-        margin=dict(l=18, r=18, t=54, b=40),
-        height=360,
-        paper_bgcolor=THEME["bg"],
-        plot_bgcolor=THEME["panel"],
-        font=dict(color="#122033", size=16, family="Inter, Avenir Next, Segoe UI, sans-serif"),
-        showlegend=False,
-        xaxis=dict(title="Date", tickformat="%b %-d", gridcolor="#c6c0ad"),
-        yaxis=dict(title="", range=[y_min, y_max], dtick=5, gridcolor="#bfb8a6"),
-    )
-    return HTMLResponse(fig.to_html(full_html=False, include_plotlyjs=False))
+    option: dict[str, Any] = {
+        "backgroundColor": "transparent",
+        "animationDuration": 450,
+        "title": {
+            "text": "Weight Trend",
+            "left": 0,
+            "top": 0,
+            "textStyle": {"fontSize": 16 if is_mobile else 18, "fontWeight": 700, "color": "#16313a"},
+        },
+        "grid": {"left": 14, "right": 14, "top": 48, "bottom": 34, "containLabel": True},
+        "tooltip": {"trigger": "axis"},
+        "xAxis": {
+            "type": "time",
+            "axisLabel": {"fontSize": 11 if is_mobile else 12, "hideOverlap": True},
+        },
+        "yAxis": {
+            "type": "value",
+            "min": y_min,
+            "max": y_max,
+            "interval": 5,
+            "splitLine": {"lineStyle": {"color": "rgba(88,110,117,0.22)"}},
+        },
+        "series": [
+            {
+                "name": "Weight",
+                "type": "line",
+                "smooth": 0.35,
+                "showSymbol": not is_mobile,
+                "symbol": "circle",
+                "symbolSize": 6,
+                "lineStyle": {"width": 3, "color": "#1e355b"},
+                "areaStyle": {"color": "rgba(100,144,199,0.18)"},
+                "data": series_data,
+            }
+        ],
+    }
+    return render_echarts_response(option, height=320 if is_mobile else 360)
 
 
 @app.get("/charts/workout-heatmap", response_class=HTMLResponse)
 async def workout_heatmap_chart(
+    request: Request,
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
+    mobile: str | None = Query(default=None),
 ) -> HTMLResponse:
     conn = await get_connection()
     try:
@@ -647,11 +884,18 @@ async def workout_heatmap_chart(
     if df.empty:
         return HTMLResponse("<p>No workout data for the selected filters.</p>")
 
+    is_mobile = is_mobile_request(request, mobile)
+
     df["month"] = df["workout_date"].dt.strftime("%b")
     df["day"] = df["workout_date"].dt.day
     grouped = (
-        df.groupby(["month", "day"], sort=False)["workout_type"]
-        .apply(lambda s: " + ".join([WORKOUT_DISPLAY.get(str(x), str(x)) for x in s.tolist()]))
+        df.groupby(["month", "day"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
+    grouped_labels = (
+        df.groupby(["month", "day"])["workout_type"]
+        .agg(lambda s: compact_workout_label(s.tolist(), mobile=is_mobile))
         .reset_index(name="label")
     )
 
@@ -664,60 +908,80 @@ async def workout_heatmap_chart(
     days = list(range(1, 32))
 
     z = [[0 for _ in month_order] for _ in days]
-    text = [["" for _ in month_order] for _ in days]
 
     month_idx = {m: i for i, m in enumerate(month_order)}
     for _, row in grouped.iterrows():
         m = row["month"]
         d = int(row["day"])
-        label = row["label"]
-        bucket_val = 1
-        l = label.lower()
-        if "gym" in l and ("swim" in l or "lido" in l or "reservoir" in l or "sauna" in l):
-            bucket_val = 3
-        elif "gym" in l:
-            bucket_val = 1
-        elif "swim" in l and "pool" in l:
-            bucket_val = 2
-        else:
-            bucket_val = 4
+        z[d - 1][month_idx[m]] = int(row["count"])
 
-        text[d - 1][month_idx[m]] = label
-        z[d - 1][month_idx[m]] = bucket_val
+    max_count = int(grouped["count"].max()) if not grouped.empty else 1
+    label_lookup = {
+        (str(row["month"]), int(row["day"])): str(row["label"])
+        for _, row in grouped_labels.iterrows()
+    }
+    heatmap_points: list[list[Any]] = []
+    for y_idx, day in enumerate(days):
+        for x_idx, month in enumerate(month_order):
+            count_val = int(z[y_idx][x_idx])
+            label = label_lookup.get((month, day), "")
+            heatmap_points.append([x_idx, y_idx, count_val, label])
 
-    fig = go.Figure(
-        data=go.Heatmap(
-            z=z,
-            x=month_order,
-            y=days,
-            text=text,
-            texttemplate="%{text}",
-            textfont=dict(family="Inter, Avenir Next, Segoe UI, sans-serif", size=9, color="#123b33"),
-            hovertemplate="Month %{x}<br>Day %{y}<br>%{text}<extra></extra>",
-            colorscale=[
-                [0.0, "#f6f0db"],
-                [0.25, "#dfeedd"],
-                [0.5, "#b8dcc2"],
-                [0.75, "#6fa783"],
-                [1.0, "#2f6f4f"],
-            ],
-            zmin=0,
-            zmax=4,
-            showscale=False,
-        )
-    )
-    apply_chart_theme(fig, "🗓️ Workout Day Heatmap", "")
-    fig.update_layout(height=430, margin=dict(l=16, r=16, t=50, b=20))
-    fig.update_xaxes(title="", side="top")
-    fig.update_yaxes(title="", autorange="reversed", dtick=1)
-    return HTMLResponse(fig.to_html(full_html=False, include_plotlyjs=False))
+    option = {
+        "backgroundColor": "transparent",
+        "animation": False,
+        "title": {
+            "text": "Workout Day Heatmap",
+            "left": 0,
+            "top": 0,
+            "textStyle": {"fontSize": 16 if is_mobile else 18, "fontWeight": 700, "color": "#16313a"},
+        },
+        "grid": {"left": 10, "right": 10, "top": 44, "bottom": 20, "containLabel": True},
+        "tooltip": {"position": "top"},
+        "xAxis": {
+            "type": "category",
+            "data": month_order,
+            "splitArea": {"show": False},
+            "axisLabel": {"fontSize": 11 if is_mobile else 12},
+        },
+        "yAxis": {
+            "type": "category",
+            "data": days,
+            "inverse": True,
+            "splitArea": {"show": False},
+            "axisLabel": {"fontSize": 10 if is_mobile else 11},
+        },
+        "visualMap": {
+            "show": False,
+            "min": 0,
+            "max": max(1, max_count),
+            "inRange": {"color": ["#f6f0db", "#dfeedd", "#b8dcc2", "#6fa783", "#2f6f4f"]},
+        },
+        "series": [
+            {
+                "name": "Workouts",
+                "type": "heatmap",
+                "data": heatmap_points,
+                "label": {
+                    "show": True,
+                    "fontSize": 8 if is_mobile else 10,
+                    "color": "#10363f",
+                    "formatter": "{@[3]}",
+                },
+                "emphasis": {"itemStyle": {"shadowBlur": 8, "shadowColor": "rgba(0, 0, 0, 0.2)"}},
+            },
+        ],
+    }
+    return render_echarts_response(option, height=380 if is_mobile else 430)
 
 
 @app.get("/charts/workout-mix", response_class=HTMLResponse)
 async def workout_mix_chart(
+    request: Request,
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
+    mobile: str | None = Query(default=None),
 ) -> HTMLResponse:
     conn = await get_connection()
     try:
@@ -757,66 +1021,77 @@ async def workout_mix_chart(
             pivot[col] = 0
     pivot = pivot[["Gym", "Pool Swim", "Lido/Res Swim"]]
 
-    fig = go.Figure()
     month_x = pd.PeriodIndex(pivot.index, freq="M").to_timestamp()
-
-    fig.add_trace(
-        go.Scatter(
-            x=month_x,
-            y=pivot["Gym"],
-            stackgroup="one",
-            groupnorm="percent",
-            mode="lines",
-            name="Gym",
-            line=dict(width=2, color="#a8c0e9", shape="spline", smoothing=0.6),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=month_x,
-            y=pivot["Pool Swim"],
-            stackgroup="one",
-            groupnorm="percent",
-            mode="lines",
-            name="Pool Swim",
-            line=dict(width=2, color="#3f85c8", shape="spline", smoothing=0.6),
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=month_x,
-            y=pivot["Lido/Res Swim"],
-            stackgroup="one",
-            groupnorm="percent",
-            mode="lines",
-            name="Lido/Res Swim",
-            line=dict(width=2, color="#4f9a80", shape="spline", smoothing=0.6),
-        )
-    )
-    apply_chart_theme(fig, "📈 Workout Mix by Month", "Share of monthly workouts (%)")
     month_labels = [ts.strftime("%b %y") for ts in month_x]
-    fig.update_xaxes(
-        title="Month",
-        tickmode="array",
-        tickvals=month_x,
-        ticktext=month_labels,
-    )
-    fig.update_layout(
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.24,
-            xanchor="left",
-            x=0,
-            font=dict(size=11),
-            bgcolor="rgba(255,255,255,0.35)",
-            bordercolor="rgba(47,111,79,0.25)",
-            borderwidth=1,
-        ),
-        margin=dict(l=18, r=18, t=58, b=92),
-    )
-    fig.update_yaxes(range=[0, 100], ticksuffix="%")
-    return HTMLResponse(fig.to_html(full_html=False, include_plotlyjs=False))
+    totals = pivot.sum(axis=1).replace(0, 1)
+    gym_pct = (pivot["Gym"] / totals * 100).round(2).tolist()
+    pool_pct = (pivot["Pool Swim"] / totals * 100).round(2).tolist()
+    lido_pct = (pivot["Lido/Res Swim"] / totals * 100).round(2).tolist()
+
+    is_mobile = is_mobile_request(request, mobile)
+    option = {
+        "backgroundColor": "transparent",
+        "animationDuration": 500,
+        "title": {
+            "text": "Workout Mix by Month",
+            "left": 0,
+            "top": 0,
+            "textStyle": {"fontSize": 16 if is_mobile else 18, "fontWeight": 700, "color": "#16313a"},
+        },
+        "grid": {"left": 14, "right": 14, "top": 50, "bottom": 46, "containLabel": True},
+        "tooltip": {"trigger": "axis", "axisPointer": {"type": "line"}},
+        "legend": {
+            "bottom": 0,
+            "left": 0,
+            "itemWidth": 12,
+            "itemHeight": 8,
+            "textStyle": {"fontSize": 10 if is_mobile else 11},
+        },
+        "xAxis": {
+            "type": "category",
+            "data": month_labels,
+            "axisLabel": {"fontSize": 10 if is_mobile else 11, "hideOverlap": True},
+        },
+        "yAxis": {
+            "type": "value",
+            "max": 100,
+            "axisLabel": {"formatter": "{value}%"},
+            "splitLine": {"lineStyle": {"color": "rgba(88,110,117,0.22)"}},
+        },
+        "series": [
+            {
+                "name": "Gym",
+                "type": "line",
+                "stack": "total",
+                "smooth": True,
+                "symbol": "none",
+                "lineStyle": {"width": 2, "color": "#a8c0e9"},
+                "areaStyle": {"color": "rgba(168,192,233,0.35)"},
+                "data": gym_pct,
+            },
+            {
+                "name": "Pool Swim",
+                "type": "line",
+                "stack": "total",
+                "smooth": True,
+                "symbol": "none",
+                "lineStyle": {"width": 2, "color": "#3f85c8"},
+                "areaStyle": {"color": "rgba(63,133,200,0.30)"},
+                "data": pool_pct,
+            },
+            {
+                "name": "Lido/Res Swim",
+                "type": "line",
+                "stack": "total",
+                "smooth": True,
+                "symbol": "none",
+                "lineStyle": {"width": 2, "color": "#4f9a80"},
+                "areaStyle": {"color": "rgba(79,154,128,0.28)"},
+                "data": lido_pct,
+            },
+        ],
+    }
+    return render_echarts_response(option, height=320 if is_mobile else 360)
 
 
 @app.get("/tables/monthly-summary", response_class=HTMLResponse)
@@ -854,53 +1129,475 @@ async def monthly_summary_table(
         return HTMLResponse("<p>No monthly data for the selected filters.</p>")
 
     df["workout_value_gbp"] = pd.to_numeric(df["workout_value_gbp"], errors="coerce").fillna(0.0)
-
-    by_month = df.groupby("month", as_index=False).agg(
-        value_gbp=("workout_value_gbp", "sum"),
-        workout_days=("workout_date", lambda s: s.dt.date.nunique()),
-        total_sessions=("workout_type", "count"),
-    )
-
-    by_type = (
-        df.groupby(["month", "bucket"]) 
-        .size()
-        .unstack(fill_value=0)
-        .reset_index()
-    )
-    for col in ["Gym", "Pool Swim", "Lido/Res Swim"]:
-        if col not in by_type.columns:
-            by_type[col] = 0
-
-    merged = by_month.merge(by_type[["month", "Gym", "Pool Swim", "Lido/Res Swim"]], on="month", how="left")
-
-    def adherence_pct(month_str: str, workout_days: int) -> float:
-        y, m = month_str.split("-")
-        return round((workout_days / monthrange(int(y), int(m))[1]) * 100.0, 2)
-
-    merged["adherence_pct"] = merged.apply(
-        lambda r: adherence_pct(str(r["month"]), int(r["workout_days"])),
-        axis=1,
-    )
-
-    merged = merged.sort_values("month")
-
-    table_rows = []
-    for _, row in merged.iterrows():
-        table_rows.append(
-            {
-                "month": str(row["month"]),
-                "value_gbp": float(row["value_gbp"]),
-                "adherence_pct": float(row["adherence_pct"]),
-                "workout_days": int(row["workout_days"]),
-                "total_sessions": int(row["total_sessions"]),
-                "gym": int(row["Gym"]),
-                "pool_swim": int(row["Pool Swim"]),
-                "lido_res_swim": int(row["Lido/Res Swim"]),
-            }
-        )
+    table_rows = build_monthly_summary_rows(df)
 
     return templates.TemplateResponse(
         request=request,
         name="partials/monthly_summary_table.html",
         context={"request": request, "rows": table_rows},
     )
+
+
+@app.get("/api/insights/concentration")
+async def concentration_data(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT injection_date, dose_mg
+            FROM injections
+            WHERE user_id = $1
+            ORDER BY injection_date;
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    selected_exercise = normalize_exercise_filter(exercise)
+    if not rows:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    df = pd.DataFrame(rows_to_dicts(rows))
+    df["injection_date"] = pd.to_datetime(df["injection_date"])
+    df = apply_date_window(df, "injection_date", start_date, end_date)
+    if df.empty:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    curve = calculate_concentration(df, days_forecast=21).sort_values("date")
+    points = [
+        {
+            "date": ts.strftime("%Y-%m-%d"),
+            "estimated_concentration": float(val),
+        }
+        for ts, val in zip(curve["date"], curve["estimated_concentration"])
+    ]
+    curve_lookup = {
+        ts.strftime("%Y-%m-%d"): float(val)
+        for ts, val in zip(curve["date"], curve["estimated_concentration"])
+    }
+    injections = [
+        {
+            "date": ts.strftime("%Y-%m-%d"),
+            "dose_mg": float(dose),
+            "estimated_concentration": float(curve_lookup.get(ts.strftime("%Y-%m-%d"), 0.0)),
+        }
+        for ts, dose in zip(df["injection_date"], df["dose_mg"])
+    ]
+    return {
+        "meta": {
+            "exercise": selected_exercise,
+            "start_date": to_iso(start_date),
+            "end_date": to_iso(end_date),
+        },
+        "points": points,
+        "injections": injections,
+    }
+
+
+@app.get("/api/insights/weight-trend")
+async def weight_trend_data(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT weigh_date, weight_kg
+            FROM weigh_ins
+            WHERE user_id = $1
+            ORDER BY weigh_date;
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    selected_exercise = normalize_exercise_filter(exercise)
+    if not rows:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    df = pd.DataFrame(rows_to_dicts(rows))
+    df["weigh_date"] = pd.to_datetime(df["weigh_date"])
+    df = apply_date_window(df, "weigh_date", start_date, end_date)
+    df["weight_kg"] = pd.to_numeric(df["weight_kg"], errors="coerce")
+    df = df.sort_values("weigh_date").dropna(subset=["weight_kg"]).reset_index(drop=True)
+    if df.empty:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    df["delta"] = df["weight_kg"].diff().fillna(0).round(2)
+    weekly_diffs: list[float | None] = []
+    for _, row in df.iterrows():
+        target_date = row["weigh_date"] - pd.Timedelta(days=7)
+        prev = df[df["weigh_date"] <= target_date]
+        if prev.empty:
+            weekly_diffs.append(None)
+        else:
+            prev_weight = float(prev.iloc[-1]["weight_kg"])
+            weekly_diffs.append(round(float(row["weight_kg"]) - prev_weight, 2))
+
+    latest_weekly_diff = next((val for val in reversed(weekly_diffs) if val is not None), None)
+    points = [
+        {
+            "date": ts.strftime("%Y-%m-%d"),
+            "weight_kg": float(weight),
+            "delta": float(delta),
+            "weekly_diff_kg": weekly,
+        }
+        for ts, weight, delta, weekly in zip(df["weigh_date"], df["weight_kg"], df["delta"], weekly_diffs)
+    ]
+    return {
+        "meta": {
+            "exercise": selected_exercise,
+            "start_date": to_iso(start_date),
+            "end_date": to_iso(end_date),
+            "latest_weekly_diff_kg": latest_weekly_diff,
+        },
+        "points": points,
+    }
+
+
+@app.get("/api/insights/workout-heatmap")
+async def workout_heatmap_data(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT workout_date, workout_type
+            FROM workouts
+            WHERE user_id = $1
+            ORDER BY workout_date;
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    selected_exercise = normalize_exercise_filter(exercise)
+    if not rows:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "months": [],
+            "days": list(range(1, 32)),
+            "cells": [],
+        }
+
+    df = pd.DataFrame(rows_to_dicts(rows))
+    df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df = apply_date_window(df, "workout_date", start_date, end_date)
+    df["bucket"] = df["workout_type"].apply(workout_bucket)
+    df = apply_workout_exercise_filter(df, selected_exercise)
+    if df.empty:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "months": [],
+            "days": list(range(1, 32)),
+            "cells": [],
+        }
+
+    df["month"] = df["workout_date"].dt.strftime("%b")
+    df["day"] = df["workout_date"].dt.day
+
+    month_order = (
+        df.assign(month_key=df["workout_date"].dt.to_period("M").astype(str))
+        .sort_values("workout_date")["month"]
+        .drop_duplicates()
+        .tolist()
+    )
+
+    grouped = (
+        df.groupby(["month", "day"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
+    grouped_labels = (
+        df.groupby(["month", "day"])["workout_type"]
+        .agg(lambda s: compact_workout_label(s.tolist(), mobile=False))
+        .reset_index(name="label")
+    )
+    label_lookup = {
+        (str(row["month"]), int(row["day"])): str(row["label"])
+        for _, row in grouped_labels.iterrows()
+    }
+
+    cells: list[dict[str, Any]] = []
+    for _, row in grouped.iterrows():
+        month = str(row["month"])
+        day = int(row["day"])
+        cells.append(
+            {
+                "month": month,
+                "day": day,
+                "count": int(row["count"]),
+                "label": label_lookup.get((month, day), ""),
+            }
+        )
+
+    return {
+        "meta": {
+            "exercise": selected_exercise,
+            "start_date": to_iso(start_date),
+            "end_date": to_iso(end_date),
+        },
+        "months": month_order,
+        "days": list(range(1, 32)),
+        "cells": cells,
+    }
+
+
+@app.get("/api/insights/workout-mix")
+async def workout_mix_data(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT workout_date, workout_type
+            FROM workouts
+            WHERE user_id = $1
+            ORDER BY workout_date;
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    selected_exercise = normalize_exercise_filter(exercise)
+    if not rows:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    df = pd.DataFrame(rows_to_dicts(rows))
+    df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df = apply_date_window(df, "workout_date", start_date, end_date)
+    df["month"] = df["workout_date"].dt.to_period("M").astype(str)
+    df["bucket"] = df["workout_type"].apply(workout_bucket)
+    df = apply_workout_exercise_filter(df, selected_exercise)
+    if df.empty:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "points": [],
+        }
+
+    monthly = (
+        df.groupby(["month", "bucket"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
+    pivot = monthly.pivot(index="month", columns="bucket", values="count").fillna(0)
+    for col in ["Gym", "Pool Swim", "Lido/Res Swim"]:
+        if col not in pivot.columns:
+            pivot[col] = 0
+    pivot = pivot[["Gym", "Pool Swim", "Lido/Res Swim"]]
+
+    points: list[dict[str, Any]] = []
+    for month, row in pivot.iterrows():
+        total = max(float(row.sum()), 1.0)
+        points.append(
+            {
+                "month": str(month),
+                "gym_pct": round(float(row["Gym"]) / total * 100.0, 2),
+                "pool_swim_pct": round(float(row["Pool Swim"]) / total * 100.0, 2),
+                "lido_res_swim_pct": round(float(row["Lido/Res Swim"]) / total * 100.0, 2),
+            }
+        )
+
+    return {
+        "meta": {
+            "exercise": selected_exercise,
+            "start_date": to_iso(start_date),
+            "end_date": to_iso(end_date),
+        },
+        "points": points,
+    }
+
+
+@app.get("/api/insights/monthly-summary")
+async def monthly_summary_data(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        rows = await conn.fetch(
+            """
+            SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
+            FROM workouts
+            WHERE user_id = $1
+            ORDER BY workout_date;
+            """,
+            USER_ID,
+        )
+    finally:
+        await conn.close()
+
+    selected_exercise = normalize_exercise_filter(exercise)
+    if not rows:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "rows": [],
+        }
+
+    df = pd.DataFrame(rows_to_dicts(rows))
+    df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df = apply_date_window(df, "workout_date", start_date, end_date)
+    df["month"] = df["workout_date"].dt.to_period("M").astype(str)
+    df["bucket"] = df["workout_type"].apply(workout_bucket)
+    df = apply_workout_exercise_filter(df, selected_exercise)
+    if df.empty:
+        return {
+            "meta": {
+                "exercise": selected_exercise,
+                "start_date": to_iso(start_date),
+                "end_date": to_iso(end_date),
+            },
+            "rows": [],
+        }
+
+    df["workout_value_gbp"] = pd.to_numeric(df["workout_value_gbp"], errors="coerce").fillna(0.0)
+    table_rows = build_monthly_summary_rows(df)
+    return {
+        "meta": {
+            "exercise": selected_exercise,
+            "start_date": to_iso(start_date),
+            "end_date": to_iso(end_date),
+        },
+        "rows": table_rows,
+    }
+
+
+@app.get("/api/history")
+async def recent_history_data(limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+    conn = await get_connection()
+    try:
+        weigh_rows = await conn.fetch(
+            """
+            SELECT weigh_in_id, weigh_date, weight_kg
+            FROM weigh_ins
+            WHERE user_id = $1
+            ORDER BY weigh_date DESC, weigh_in_id DESC
+            LIMIT $2;
+            """,
+            USER_ID,
+            limit,
+        )
+        injection_rows = await conn.fetch(
+            """
+            SELECT injection_id, injection_date, dose_mg
+            FROM injections
+            WHERE user_id = $1
+            ORDER BY injection_date DESC, injection_id DESC
+            LIMIT $2;
+            """,
+            USER_ID,
+            limit,
+        )
+        workout_rows = await conn.fetch(
+            """
+            SELECT workout_id, workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
+            FROM workouts
+            WHERE user_id = $1
+            ORDER BY workout_date DESC, workout_id DESC
+            LIMIT $2;
+            """,
+            USER_ID,
+            limit,
+        )
+    finally:
+        await conn.close()
+
+    weigh = [
+        {
+            "id": int(r["weigh_in_id"]),
+            "date": str(r["weigh_date"]),
+            "weight_kg": float(r["weight_kg"]),
+        }
+        for r in rows_to_dicts(weigh_rows)
+    ]
+    injections = [
+        {
+            "id": int(r["injection_id"]),
+            "date": str(r["injection_date"]),
+            "dose_mg": float(r["dose_mg"]),
+        }
+        for r in rows_to_dicts(injection_rows)
+    ]
+    workouts = [
+        {
+            "id": int(r["workout_id"]),
+            "date": str(r["workout_date"]),
+            "workout_type": str(r["workout_type"]),
+            "workout_value_gbp": float(r["workout_value_gbp"]),
+        }
+        for r in rows_to_dicts(workout_rows)
+    ]
+
+    return {
+        "weigh_ins": weigh,
+        "injections": injections,
+        "workouts": workouts,
+    }
