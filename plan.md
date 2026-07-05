@@ -1,86 +1,220 @@
-# Pulseboard Version Log
+# Pulseboard Next-Level Product Plan
 
-This file is now a delivered-change log (not a forward plan).
+This document is a forward-looking product plan.
+For shipped changes, see version_log.md.
 
-## v2.12.0 - Premium Light Mode Alignment + Motion Polish (2026-07-05)
+## Product North Star
 
-- Reworked light-mode visual hierarchy to match dark-mode quality.
-- Removed remaining blue casts and hardcoded blue accents from v2 surfaces/components.
-- Refined active pills and primary actions (Insights + Log) to lighter premium gradients.
-- Added light-mode-only depth treatment for cards/hero/tiles.
-- Added typography polish (heading weight/tracking) and softer secondary borders.
-- Improved interaction quality with smoother easing/timing and subtle hover/focus behavior.
+Pulseboard should be a daily decision companion, not only a tracker.
+Each session should answer:
+- What changed?
+- Why did it change?
+- What should I do next?
 
-## v2.11.0 - Donut Readability and Context Clarity (2026-07-05)
+Primary outcome:
+- A user can open the app, understand their current state, and choose one clear action in under 30 seconds.
 
-- Donut segments changed to rounded capsule-style arcs and thinner ring profile.
-- Segment label readability improved by moving percentages outside ring and increasing contrast.
-- Mix context copy now handles edge cases:
-  - selected-day-only
-  - month-to-date range
-  - no sessions up to selected day
-- Summary and donut-center context are now aligned in wording intent.
+## Strategic Pillars
 
-## v2.10.0 - Theme Architecture and Dark Palette Upgrade (2026-07-05)
+1. Clarity
+- Faster comprehension of trends and context.
+- Narrative summaries that are explicit and trustworthy.
 
-- Centralized theme tokens in static/v2/palette.css as the quick-edit source.
-- Enabled runtime-reactive chart theming through token getters in static/v2/chart-theme.js.
-- Added persistent dark-mode toggle across Insights and Log.
-- Rebalanced dark palette toward muted premium green/olive direction.
-- Updated mix legend/segment palette for stronger non-blue coherence.
+2. Guidance
+- Action-focused recommendations tied to current patterns.
+- Confidence-aware language when data is sparse.
 
-## v2.9.0 - Time-Series Consistency and Gradient Fixes (2026-07-05)
+3. Habit Loop
+- Lightweight recurring review cycle that reinforces consistent logging.
+- High-signal nudges with minimal notification fatigue.
 
-- Unified concentration and weight charts with shared renderer in static/v2/charts/shared-line-style.js.
-- Fixed weight area shading baseline/fade behavior to match concentration chart quality.
-- Improved line/area continuity and visual parity across both charts.
+4. Premium Quality
+- Consistent interaction model across Log and Insights.
+- Best-in-class visual polish, responsiveness, and accessibility.
 
-## v2.8.0 - Mix + Heatmap Context Refinement (2026-07-05)
+5. Reliability
+- Stable API contracts, resilient partial rendering, and predictable performance.
 
-- Added clear mix context messaging for full-month vs month-to-date states.
-- Added reset-to-full-month behavior for mix after heatmap day selection.
-- Normalized heatmap month keys to YYYY-MM for reliable multi-month filtering.
-- Removed implicit day auto-selection for clearer user intent.
+## User Segments and Core Jobs
 
-## v2.7.0 - Month Filter UX Overhaul (2026-07-05)
+Primary segments:
+- Consistency-focused athlete
+- Body-composition focused lifter
 
-- Replaced native multi-select with custom month dropdown + checkbox menu.
-- Added cleaner controls: Select months, Default View, Done, Apply Months.
-- Set default filter window to current month + previous 3 months.
-- Added filter helper copy and improved z-index/layering to avoid dropdown clipping.
+Core jobs-to-be-done:
+- Log quickly with low friction.
+- Understand progress over selected windows.
+- See behavior-to-outcome relationships.
+- Receive one useful recommendation for today.
 
-## v2.6.0 - Context-Aware Insights and Narrative Accuracy (2026-07-05)
+## 12-Week Roadmap
 
-- Updated "latest" insight logic to use current-or-prior data point semantics.
-- Made KPI tiles and summaries window-aware to selected month range.
-- Improved narrative summaries for concentration, weight, heatmap, and mix.
+### Phase 1 (Weeks 1-2): Product Foundation and Measurement
 
-## v2.5.0 - State and Chart System Foundation (2026-07-04 to 2026-07-05)
+Goals:
+- Define product success model and instrument behavior.
 
-- Added modular chart foundation in static/v2:
-  - chart-core.js
-  - chart-theme.js
-  - chart-axes.js
-  - chart-interactions.js
-  - chart-registry.js
-  - insights-state.js
-- Refactored rendering orchestration for cleaner updates and shared state.
-- Added lightweight chart timing instrumentation in dev mode.
+Scope:
+- Finalize user promise and top personas.
+- Build KPI tree and event taxonomy.
+- Add analytics instrumentation for:
+  - log submitted
+  - month filter applied
+  - heatmap day selected
+  - mix reset used
+  - insight card viewed
+  - recommendation accepted/dismissed
+- Build weekly product dashboard.
 
-## v2.4.0 - Reliability and Contract Safeguards (2026-07-04 to 2026-07-05)
+Deliverables:
+- Product spec v1.
+- KPI dashboard v1.
+- Event map and naming conventions.
 
-- Hardened API contract expectations with helper tests.
-- Preserved/validated endpoint behavior under iterative UI changes.
-- Repeated regression checks stayed green (test_api_contract_helpers.py).
+### Phase 2 (Weeks 3-5): Insight-to-Action Layer
 
-## v2.3.0 - v2 Experience Activation (2026-07-04)
+Goals:
+- Move from descriptive charts to actionable guidance.
 
-- Activated v2 routes and templates for Log + Insights experience.
-- Established new frontend architecture under static/v2 and templates/v2*.html.
+Scope:
+- Add a "Today Brief" module at top of Insights:
+  - trend summary
+  - risk/opportunity note
+  - one recommended action
+- Introduce behavior-to-outcome cues (with confidence labels).
+- Add goals model:
+  - workouts per week
+  - weigh-in cadence
+  - consistency targets
+- Add recommendation engine v1 (rules-based, explainable).
 
-## Legacy Status
+Deliverables:
+- Actionable brief experience.
+- Recommendation interaction tracking.
 
-- Legacy mode has been sunset.
-- Canonical routes:
-  - / -> v2 log
-  - /insights -> v2 insights
+### Phase 3 (Weeks 6-8): Retention and Habit Systems
+
+Goals:
+- Increase repeat usage and sustained logging.
+
+Scope:
+- Weekly Review surface:
+  - wins
+  - friction points
+  - suggested focus for next week
+- Lightweight reminder logic with anti-spam guardrails.
+- Meaningful streaks tied to consistency behaviors.
+- Personal baseline and milestone system.
+
+Deliverables:
+- Weekly review flow.
+- Nudge policy and cadence controls.
+
+### Phase 4 (Weeks 9-12): Premium Product Layer
+
+Goals:
+- Add advanced value suitable for premium positioning.
+
+Scope:
+- Advanced analysis features:
+  - period-vs-period comparisons
+  - trend stability/variance scoring
+  - confidence-backed interpretation
+- Planning tools:
+  - weekly plan builder
+  - simple scenario preview based on current pace
+- Export/share support for coach-ready summaries.
+- Adaptive dashboard ordering based on user behavior.
+
+Deliverables:
+- Premium feature bundle v1.
+- Packaging and pricing test plan.
+
+## Success Metrics
+
+Activation:
+- % of new users who complete 3+ logs in first 7 days.
+
+Engagement:
+- Weekly active users.
+- Sessions per weekly active user.
+- % users viewing Today Brief.
+
+Retention:
+- Week-4 retention.
+- Repeat Weekly Review completion rate.
+
+Outcome quality:
+- % users with improved consistency over baseline.
+- Recommendation interaction and completion rate.
+
+Performance and quality:
+- Median log flow completion time.
+- Median insights load and update latency.
+- Runtime error rate and endpoint reliability.
+
+## Experience and Quality Standards
+
+UX:
+- Mobile-first interactions with desktop parity.
+- No ambiguous context text in edge cases.
+- All actionable controls clearly state scope/time window.
+
+Accessibility:
+- Keyboard-operable controls.
+- Color contrast validated for all themes.
+- Reduced-motion support preserved.
+
+Performance:
+- Fast first meaningful render.
+- Incremental redraws where possible.
+- Stable behavior under partial API failures.
+
+## Technical Execution Notes
+
+Frontend:
+- Keep token-driven theme architecture as single source of truth.
+- Continue modular chart approach under static/v2/charts.
+- Use shared state and chart registry for cross-chart synchronization.
+
+Backend:
+- Keep payload contracts explicit and version-safe.
+- Add optional bundle endpoint only if latency profiling shows need.
+- Maintain helper tests for schema stability.
+
+Observability:
+- Add product-level events in addition to dev chart timing logs.
+- Keep weekly review of errors, latency, and behavior funnel metrics.
+
+## Risks and Mitigations
+
+1. Insight overload
+- Mitigation: progressive disclosure and concise defaults.
+
+2. Recommendation trust risk
+- Mitigation: explainability + confidence language + conservative rules.
+
+3. Scope creep during polish
+- Mitigation: phase gates and explicit acceptance criteria per phase.
+
+4. Regression risk from rapid iteration
+- Mitigation: maintain API helper tests and targeted UI validation checklist.
+
+## Working Rhythm
+
+Weekly:
+- KPI review and experiment decisions.
+- One product quality review pass.
+
+Biweekly:
+- Ship one meaningful user-visible increment.
+
+Monthly:
+- User interviews and roadmap adjustment.
+
+## Acceptance Criteria for Plan Completion
+
+- Users consistently receive one clear action from Insights.
+- Retention and engagement targets trend upward across two release cycles.
+- Premium quality bar is maintained in both light and dark modes.
+- No unresolved P1/P2 product issues remain in core log + insight flows.
