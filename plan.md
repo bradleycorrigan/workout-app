@@ -1,220 +1,240 @@
-# Pulseboard Next-Level Product Plan
+# Pulseboard Productionization Plan
 
-This document is a forward-looking product plan.
-For shipped changes, see version_log.md.
+This plan is for productionization only.
+Do not implement from this file yet.
 
-## Product North Star
+## Objectives
 
-Pulseboard should be a daily decision companion, not only a tracker.
-Each session should answer:
-- What changed?
-- Why did it change?
-- What should I do next?
+- Move from single-user prototype to secure multi-user product.
+- Add reliable email/password auth now, with social login later.
+- Generalize workout modeling so the app is not tied to one person's preset types.
+- Introduce onboarding that captures account details and starter workout list.
+- Prepare Supabase-backed security model with strict row-level controls.
 
-Primary outcome:
-- A user can open the app, understand their current state, and choose one clear action in under 30 seconds.
+## Scope for This Plan
 
-## Strategic Pillars
+In scope:
+- multi-user architecture
+- login and signup UX
+- onboarding flow and data model
+- workout-type standardization
+- Supabase auth, schema, and RLS strategy
+- rollout, migration, and hardening
 
-1. Clarity
-- Faster comprehension of trends and context.
-- Narrative summaries that are explicit and trustworthy.
+Out of scope right now:
+- feature implementation
+- pricing/paywall implementation
+- social login implementation
 
-2. Guidance
-- Action-focused recommendations tied to current patterns.
-- Confidence-aware language when data is sparse.
+## Product Decisions Locked for v1
 
-3. Habit Loop
-- Lightweight recurring review cycle that reinforces consistent logging.
-- High-signal nudges with minimal notification fatigue.
+- Auth method: email + password only.
+- Social login: deferred to later milestone.
+- Onboarding must include workout-list definition.
+- Onboarding must not ask users to define workout costs.
+- Cost configuration and monetization are postponed for future paywall phase.
 
-4. Premium Quality
-- Consistent interaction model across Log and Insights.
-- Best-in-class visual polish, responsiveness, and accessibility.
+## Target Architecture
 
-5. Reliability
-- Stable API contracts, resilient partial rendering, and predictable performance.
+### Identity and Access
 
-## User Segments and Core Jobs
+- Use Supabase Auth as source of truth for users.
+- Each app user maps to `auth.users.id` UUID.
+- App tables reference `user_id` UUID and never trust client-supplied user IDs.
 
-Primary segments:
-- Consistency-focused athlete
-- Body-composition focused lifter
+### Data Ownership Model
 
-Core jobs-to-be-done:
-- Log quickly with low friction.
-- Understand progress over selected windows.
-- See behavior-to-outcome relationships.
-- Receive one useful recommendation for today.
+- Every user-owned row has `user_id` and `created_at`.
+- All read/write access governed by RLS policies tied to `auth.uid()`.
+- Service role is reserved for admin/server-only tasks.
 
-## 12-Week Roadmap
+### Domain Model Evolution
 
-### Phase 1 (Weeks 1-2): Product Foundation and Measurement
+Current issue:
+- workout types are too specific to one person.
 
-Goals:
-- Define product success model and instrument behavior.
+Target:
+- Introduce normalized workout catalog model:
+  - `workout_types` (global defaults)
+  - `user_workout_types` (user-enabled set / custom labels)
+  - `workouts` references type IDs, not hardcoded strings
+- Preserve backward compatibility during migration with a mapping layer.
 
-Scope:
-- Finalize user promise and top personas.
-- Build KPI tree and event taxonomy.
-- Add analytics instrumentation for:
-  - log submitted
-  - month filter applied
-  - heatmap day selected
-  - mix reset used
-  - insight card viewed
-  - recommendation accepted/dismissed
-- Build weekly product dashboard.
+## User Flows
+
+### Signup Flow
+
+Step 1:
+- Feature-oriented signup screen explaining what users get:
+  - fast logging
+  - trend insights
+  - progress context
+
+Step 2:
+- Email + password account creation.
+
+Step 3:
+- Verification handling (if email confirmation enabled).
+
+Step 4:
+- First-time onboarding kickoff.
+
+### Login Flow
+
+- Email + password login.
+- Clear links for:
+  - create account
+  - forgot password
+- Post-login redirect:
+  - if onboarding incomplete -> onboarding
+  - else -> log screen
+
+### Onboarding Flow (Must Have)
+
+- Intro: concise feature explanation and value.
+- Workout setup:
+  - choose from starter workout list
+  - optionally enable/disable items
+  - allow simple custom workout labels
+- No workout cost setup in onboarding.
+- Completion writes user preferences/profile flags.
+
+## Security and Compliance Plan (Supabase)
+
+### RLS Baseline
+
+For every user-owned table:
+- `SELECT`: allowed only where `user_id = auth.uid()`
+- `INSERT`: allowed only where `user_id = auth.uid()`
+- `UPDATE`: allowed only where `user_id = auth.uid()`
+- `DELETE`: allowed only where `user_id = auth.uid()`
+
+### API Security Rules
+
+- Server must validate auth token for protected endpoints.
+- Never accept `user_id` from request body/query for ownership decisions.
+- Derive user identity from validated auth context only.
+- Add centralized authorization checks to avoid route drift.
+
+### Operational Hardening
+
+- Environment separation for dev/staging/prod Supabase projects.
+- Key hygiene:
+  - anon key only in client
+  - service key only in server secrets
+- Add audit logging for auth failures and authorization denials.
+
+## Delivery Plan (Phased)
+
+### Phase 0: Production Readiness Design (1 week)
 
 Deliverables:
-- Product spec v1.
-- KPI dashboard v1.
-- Event map and naming conventions.
+- finalized auth and data model spec
+- migration plan from single-user data
+- RLS policy matrix by table
+- onboarding UX wireframes and copy
 
-### Phase 2 (Weeks 3-5): Insight-to-Action Layer
+Exit criteria:
+- architecture and migration reviewed and approved
 
-Goals:
-- Move from descriptive charts to actionable guidance.
-
-Scope:
-- Add a "Today Brief" module at top of Insights:
-  - trend summary
-  - risk/opportunity note
-  - one recommended action
-- Introduce behavior-to-outcome cues (with confidence labels).
-- Add goals model:
-  - workouts per week
-  - weigh-in cadence
-  - consistency targets
-- Add recommendation engine v1 (rules-based, explainable).
+### Phase 1: Multi-User Foundation + Auth (1-2 weeks)
 
 Deliverables:
-- Actionable brief experience.
-- Recommendation interaction tracking.
+- Supabase project + environments configured
+- email/password signup/login/reset flows wired
+- server-side auth validation in protected routes
+- user context propagation throughout app
 
-### Phase 3 (Weeks 6-8): Retention and Habit Systems
+Exit criteria:
+- two distinct users cannot see or mutate each other's records
 
-Goals:
-- Increase repeat usage and sustained logging.
-
-Scope:
-- Weekly Review surface:
-  - wins
-  - friction points
-  - suggested focus for next week
-- Lightweight reminder logic with anti-spam guardrails.
-- Meaningful streaks tied to consistency behaviors.
-- Personal baseline and milestone system.
+### Phase 2: Workout Model Generalization (1-2 weeks)
 
 Deliverables:
-- Weekly review flow.
-- Nudge policy and cadence controls.
+- workout type schema refactor and migration
+- compatibility mapping for legacy workout rows
+- UI reads available workout types from user-aware source
 
-### Phase 4 (Weeks 9-12): Premium Product Layer
+Exit criteria:
+- no hardcoded personal workout assumptions in active log flow
 
-Goals:
-- Add advanced value suitable for premium positioning.
-
-Scope:
-- Advanced analysis features:
-  - period-vs-period comparisons
-  - trend stability/variance scoring
-  - confidence-backed interpretation
-- Planning tools:
-  - weekly plan builder
-  - simple scenario preview based on current pace
-- Export/share support for coach-ready summaries.
-- Adaptive dashboard ordering based on user behavior.
+### Phase 3: Onboarding (1 week)
 
 Deliverables:
-- Premium feature bundle v1.
-- Packaging and pricing test plan.
+- guided onboarding flow after signup
+- workout list selection/customization
+- onboarding-complete flag and gating
 
-## Success Metrics
+Exit criteria:
+- first-time user can complete onboarding and log first workout successfully
 
-Activation:
-- % of new users who complete 3+ logs in first 7 days.
+### Phase 4: Security Hardening + Launch Prep (1 week)
 
-Engagement:
-- Weekly active users.
-- Sessions per weekly active user.
-- % users viewing Today Brief.
+Deliverables:
+- final RLS policy verification checklist
+- auth error handling and session edge-case handling
+- monitoring dashboard and runbook
+- rollback and incident response notes
 
-Retention:
-- Week-4 retention.
-- Repeat Weekly Review completion rate.
+Exit criteria:
+- security review passed
+- staging signoff complete
 
-Outcome quality:
-- % users with improved consistency over baseline.
-- Recommendation interaction and completion rate.
+## Migration Strategy
 
-Performance and quality:
-- Median log flow completion time.
-- Median insights load and update latency.
-- Runtime error rate and endpoint reliability.
+- Create new schema/tables first.
+- Backfill existing user data to mapped model.
+- Run dual-read compatibility window if needed.
+- Cut over read paths, then write paths.
+- Remove legacy assumptions after verification.
 
-## Experience and Quality Standards
+## Testing Plan
 
-UX:
-- Mobile-first interactions with desktop parity.
-- No ambiguous context text in edge cases.
-- All actionable controls clearly state scope/time window.
+### Functional
 
-Accessibility:
-- Keyboard-operable controls.
-- Color contrast validated for all themes.
-- Reduced-motion support preserved.
+- signup, login, logout, reset password
+- onboarding completion and skip prevention
+- workout creation/edit/delete across custom workout lists
 
-Performance:
-- Fast first meaningful render.
-- Incremental redraws where possible.
-- Stable behavior under partial API failures.
+### Security
 
-## Technical Execution Notes
+- RLS isolation tests (user A cannot read/write user B)
+- endpoint auth enforcement tests
+- token/session expiry behavior tests
 
-Frontend:
-- Keep token-driven theme architecture as single source of truth.
-- Continue modular chart approach under static/v2/charts.
-- Use shared state and chart registry for cross-chart synchronization.
+### Regression
 
-Backend:
-- Keep payload contracts explicit and version-safe.
-- Add optional bundle endpoint only if latency profiling shows need.
-- Maintain helper tests for schema stability.
-
-Observability:
-- Add product-level events in addition to dev chart timing logs.
-- Keep weekly review of errors, latency, and behavior funnel metrics.
+- existing insights and log flows still work with user scoping
+- old data remains visible to correct owner post-migration
 
 ## Risks and Mitigations
 
-1. Insight overload
-- Mitigation: progressive disclosure and concise defaults.
+Risk:
+- breaking existing single-user flows during migration
+Mitigation:
+- staged rollout with migration dry-runs and rollback script
 
-2. Recommendation trust risk
-- Mitigation: explainability + confidence language + conservative rules.
+Risk:
+- incomplete RLS coverage
+Mitigation:
+- explicit policy matrix + automated policy checks per table
 
-3. Scope creep during polish
-- Mitigation: phase gates and explicit acceptance criteria per phase.
+Risk:
+- onboarding friction hurts activation
+Mitigation:
+- keep onboarding minimal and postpone nonessential inputs like costs
 
-4. Regression risk from rapid iteration
-- Mitigation: maintain API helper tests and targeted UI validation checklist.
+## Launch Checklist
 
-## Working Rhythm
+- Supabase prod project configured with least-privilege keys
+- all user-owned tables have RLS enabled and tested
+- auth flows verified on mobile and desktop
+- onboarding copy reviewed and approved
+- monitoring alerts configured for auth/API failures
 
-Weekly:
-- KPI review and experiment decisions.
-- One product quality review pass.
+## Future (Post-v1)
 
-Biweekly:
-- Ship one meaningful user-visible increment.
-
-Monthly:
-- User interviews and roadmap adjustment.
-
-## Acceptance Criteria for Plan Completion
-
-- Users consistently receive one clear action from Insights.
-- Retention and engagement targets trend upward across two release cycles.
-- Premium quality bar is maintained in both light and dark modes.
-- No unresolved P1/P2 product issues remain in core log + insight flows.
+- social login providers
+- workout cost setup behind premium/paywall strategy
+- team/coach sharing model
+- advanced account and billing management
