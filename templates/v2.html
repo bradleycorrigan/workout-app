@@ -30,7 +30,7 @@
                 radial-gradient(900px 520px at 105% 0%, color-mix(in srgb, var(--pb-c4) 16%, transparent), transparent 52%),
                 linear-gradient(180deg, var(--pb-bg-start), var(--pb-bg-mid) 48%, var(--pb-bg-end) 100%);
         }
-        .page { max-width: 900px; margin: 0 auto; padding: 14px; }
+        .page { max-width: 900px; margin: 0 auto; padding: 14px 14px 94px; }
         .hero, .card, .metric-tile {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -74,14 +74,19 @@
             justify-content: flex-end;
         }
         .theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             border-radius: 999px;
-            height: 34px;
-            padding: 0 12px;
+            height: 28px;
+            padding: 0 10px;
             border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
             background: color-mix(in srgb, var(--pb-surface) 76%, transparent);
             color: var(--pb-link);
             font-weight: 700;
+            font-size: 0.78rem;
             cursor: pointer;
+            z-index: 2;
         }
         :root:not([data-theme="dark"]) .theme-toggle {
             background: linear-gradient(
@@ -420,6 +425,50 @@
             outline: 2px solid color-mix(in srgb, var(--pb-focus) 58%, transparent);
             outline-offset: 2px;
         }
+        .bottom-nav {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            padding: 7px;
+            border-radius: 999px;
+            backdrop-filter: blur(14px) saturate(1.15);
+            background: color-mix(in srgb, var(--pb-surface) 70%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 22%, transparent);
+            box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 40%, transparent),
+                0 14px 28px color-mix(in srgb, var(--pb-c5) 16%, transparent);
+            z-index: 40;
+        }
+        .bottom-nav-inner {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            white-space: nowrap;
+        }
+        .bottom-tab {
+            border-radius: 999px;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.86rem;
+            padding: 0 14px;
+            color: var(--pb-link);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 26%, transparent);
+            background: var(--pb-surface-strong);
+        }
+        .bottom-tab.active {
+            color: var(--pb-on-brand);
+            border-color: color-mix(in srgb, var(--pb-brand-dark) 42%, transparent);
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--pb-brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--pb-brand-dark) 74%, var(--pb-surface))
+            );
+        }
         th {
             color: var(--pb-ink-soft);
             text-transform: uppercase;
@@ -430,6 +479,11 @@
             .filters { grid-template-columns: 1fr; }
             .hero-actions { justify-content: flex-start; }
             .month-picker { min-width: 0; }
+            .bottom-tab {
+                min-height: 34px;
+                padding: 0 12px;
+                font-size: 0.82rem;
+            }
         }
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -448,10 +502,6 @@
                 <h1>📊 Insights</h1>
                 <div class="hero-actions">
                     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙 Dark</button>
-                    <div class="nav-links">
-                        <a href="/">📝 Log</a>
-                        <a href="/insights" class="active">📊 Insights</a>
-                    </div>
                 </div>
             </div>
             <div class="filters">
@@ -530,6 +580,12 @@
             </article>
         </section>
     </main>
+    <nav class="bottom-nav" aria-label="Primary">
+        <div class="bottom-nav-inner">
+            <a class="bottom-tab" href="/">📝 Log</a>
+            <a class="bottom-tab active" href="/insights">📊 Insights</a>
+        </div>
+    </nav>
     <script type="module" src="/static/v2/insights.js"></script>
 </body>
 </html>

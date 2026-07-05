@@ -3,7 +3,8 @@ import { renderHistoryByKind } from "./history.js";
 
 const statusEl = document.getElementById("status");
 const logKindEl = document.getElementById("log-kind");
-const nextBtn = document.getElementById("log-next");
+const inlineForm = document.getElementById("inline-form");
+const composerTitle = document.getElementById("composer-title");
 const dialogEl = document.getElementById("log-dialog");
 const dialogForm = document.getElementById("dialog-form");
 const dialogTitle = document.getElementById("dialog-title");
@@ -37,6 +38,10 @@ const KIND_META = {
   },
 };
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg;
 }
@@ -63,7 +68,7 @@ function initTheme() {
 function formMarkup(kind, mode = "create", seed = {}) {
   if (kind === "weigh") {
     const submitLabel = mode === "edit" ? "Save Changes" : "Save Weigh-In";
-    const dateValue = seed.date || "";
+    const dateValue = seed.date || (mode === "create" ? todayISO() : "");
     const weightValue = seed.weight_kg ?? "";
     return {
       title: mode === "edit" ? "⚖️ Edit Weigh-In" : "⚖️ Log Weigh-In",
@@ -79,7 +84,7 @@ function formMarkup(kind, mode = "create", seed = {}) {
   }
   if (kind === "injection") {
     const submitLabel = mode === "edit" ? "Save Changes" : "Save Injection";
-    const dateValue = seed.date || "";
+    const dateValue = seed.date || (mode === "create" ? todayISO() : "");
     const doseValue = seed.dose_mg ?? "";
     return {
       title: mode === "edit" ? "💉 Edit Injection" : "💉 Log Injection",
@@ -94,7 +99,7 @@ function formMarkup(kind, mode = "create", seed = {}) {
     };
   }
   const submitLabel = mode === "edit" ? "Save Changes" : "Save Workouts";
-  const dateValue = seed.date || "";
+  const dateValue = seed.date || (mode === "create" ? todayISO() : "");
   const selectedWorkoutType = String(seed.workout_type || "gym");
   if (mode === "edit") {
     return {
@@ -121,7 +126,7 @@ function formMarkup(kind, mode = "create", seed = {}) {
     title: "💪 Log Workouts",
     html: `
       <label class="field-label" for="workout-date">Date</label>
-      <input id="workout-date" name="workout_date" type="date" required>
+    <input id="workout-date" name="workout_date" type="date" required value="${dateValue}">
       <label class="field-label">Workout Types</label>
       <div class="workout-types">
         <label class="type-chip"><input type="checkbox" name="workout_types" value="gym">Gym</label>
@@ -159,6 +164,16 @@ function renderCurrentHistory() {
   if (historySubtitle) historySubtitle.textContent = meta.historySubtitle;
   if (logPreview) logPreview.textContent = meta.preview;
   renderHistoryByKind("history-active", historyCache, kind);
+}
+
+function renderInlineComposer(kind) {
+  if (!inlineForm) return;
+  const config = formMarkup(kind, "create");
+  if (composerTitle) composerTitle.textContent = config.title;
+  inlineForm.innerHTML = config.html;
+  inlineForm.dataset.action = config.action;
+  inlineForm.dataset.kind = kind;
+  inlineForm.dataset.mode = "create";
 }
 
 function openDialog(kind, mode = "create", seed = {}) {
@@ -223,12 +238,9 @@ async function handleHistoryAction(event) {
   }
 }
 
-nextBtn?.addEventListener("click", () => {
-  openDialog(getCurrentKind(), "create");
-});
-
 logKindEl?.addEventListener("change", () => {
   renderCurrentHistory();
+  renderInlineComposer(getCurrentKind());
 });
 
 dialogCancel?.addEventListener("click", () => {
@@ -268,6 +280,32 @@ dialogForm?.addEventListener("submit", async (event) => {
   }
 });
 
+inlineForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const action = form.dataset.action;
+  const kind = form.dataset.kind;
+  if (!action) return;
+
+  if (kind === "workout") {
+    const checked = form.querySelectorAll('input[name="workout_types"]:checked').length;
+    if (!checked) {
+      setStatus("Choose at least one workout type.");
+      return;
+    }
+  }
+
+  try {
+    await postForm(action, form);
+    setStatus("Saved.");
+    form.reset();
+    renderInlineComposer(getCurrentKind());
+    await reloadHistory();
+  } catch (error) {
+    setStatus(error?.message || "Could not save entry.");
+  }
+});
+
 document.addEventListener("click", (event) => {
   void handleHistoryAction(event);
 });
@@ -280,4 +318,5 @@ themeToggleEl?.addEventListener("click", () => {
 setStatus("Ready.");
 initTheme();
 renderCurrentHistory();
+renderInlineComposer(getCurrentKind());
 void reloadHistory();

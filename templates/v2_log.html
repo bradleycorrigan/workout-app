@@ -31,7 +31,7 @@
                 radial-gradient(900px 520px at 105% 0%, color-mix(in srgb, var(--pb-c4) 16%, transparent), transparent 52%),
                 linear-gradient(180deg, var(--pb-bg-start), var(--pb-bg-mid) 48%, var(--pb-bg-end) 100%);
         }
-        .page { max-width: 900px; margin: 0 auto; padding: 14px; }
+            .page { max-width: 900px; margin: 0 auto; padding: 14px 14px 94px; }
         .hero, .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -77,14 +77,19 @@
             flex-wrap: wrap;
         }
         .theme-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
             border-radius: 999px;
-            height: 34px;
-            padding: 0 12px;
+            height: 28px;
+            padding: 0 10px;
             border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
             background: color-mix(in srgb, var(--pb-surface) 76%, transparent);
             color: var(--pb-link);
             font-weight: 700;
+            font-size: 0.78rem;
             cursor: pointer;
+            z-index: 2;
         }
         :root:not([data-theme="dark"]) .theme-toggle {
             background: linear-gradient(
@@ -143,7 +148,7 @@
         }
         .logger-flow {
             display: grid;
-            grid-template-columns: 1fr auto;
+            grid-template-columns: 1fr;
             gap: 8px;
             align-items: end;
         }
@@ -158,7 +163,9 @@
         }
         .logger-kind { display: grid; }
         .logger-flow select,
-        .logger-flow button,
+        .inline-form input,
+        .inline-form select,
+        .inline-form button,
         .dialog-form input,
         .dialog-form select,
         .dialog-form button {
@@ -170,7 +177,7 @@
             outline: none;
             color: var(--pb-ink-soft);
         }
-        .logger-flow button,
+        .inline-form button,
         .dialog-form button {
             border: 1px solid color-mix(in srgb, var(--brand-dark) 42%, transparent);
             background: linear-gradient(
@@ -182,13 +189,25 @@
             font-weight: 700;
             cursor: pointer;
         }
-        .logger-flow button {
+        .inline-form button {
             box-shadow: 0 10px 20px color-mix(in srgb, var(--pb-c4) 28%, transparent);
             transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth);
         }
-        .logger-flow button:hover {
+        .inline-form button:hover {
             transform: translateY(-1px);
             box-shadow: 0 14px 22px color-mix(in srgb, var(--pb-c4) 32%, transparent);
+        }
+        .composer-card {
+            padding: 12px;
+        }
+        .composer-step {
+            margin: 0 0 10px;
+            color: var(--pb-ink-muted);
+            font-size: 0.82rem;
+        }
+        .inline-form {
+            display: grid;
+            gap: 8px;
         }
         .log-preview {
             margin-top: 10px;
@@ -362,14 +381,62 @@
         .nav-links a:focus-visible,
         .action-btn:focus-visible,
         .ghost-btn:focus-visible,
-        .logger-flow button:focus-visible,
+        .inline-form button:focus-visible,
         .dialog-form button:focus-visible {
             outline: 2px solid color-mix(in srgb, var(--pb-focus) 58%, transparent);
             outline-offset: 2px;
         }
+        .bottom-nav {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            padding: 7px;
+            border-radius: 999px;
+            backdrop-filter: blur(14px) saturate(1.15);
+            background: color-mix(in srgb, var(--pb-surface) 70%, transparent);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 22%, transparent);
+            box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 40%, transparent),
+                0 14px 28px color-mix(in srgb, var(--pb-c5) 16%, transparent);
+            z-index: 40;
+        }
+        .bottom-nav-inner {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            white-space: nowrap;
+        }
+        .bottom-tab {
+            border-radius: 999px;
+            min-height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.86rem;
+            padding: 0 14px;
+            color: var(--pb-link);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 26%, transparent);
+            background: var(--pb-surface-strong);
+        }
+        .bottom-tab.active {
+            color: var(--pb-on-brand);
+            border-color: color-mix(in srgb, var(--pb-brand-dark) 42%, transparent);
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--pb-brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--pb-brand-dark) 74%, var(--pb-surface))
+            );
+        }
         @media (max-width: 640px) {
-            .logger-flow { grid-template-columns: 1fr; }
-            .logger-flow button { width: 100%; }
+            .inline-form button { width: 100%; }
+            .bottom-tab {
+                min-height: 34px;
+                padding: 0 12px;
+                font-size: 0.82rem;
+            }
         }
     </style>
 </head>
@@ -380,10 +447,6 @@
                 <h1>📝 Log</h1>
                 <div class="hero-actions">
                     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙 Dark</button>
-                    <div class="nav-links">
-                        <a href="/" class="active">📝 Log</a>
-                        <a href="/insights">📊 Insights</a>
-                    </div>
                 </div>
             </div>
             <p class="hero-copy">Pick one log type, complete the focused form, and review only the recent entries that matter for that flow.</p>
@@ -402,9 +465,14 @@
                             <option value="workout">💪 Workout</option>
                         </select>
                     </div>
-                    <button id="log-next">Next</button>
                 </div>
                 <div id="log-preview" class="log-preview">You are about to log a weigh-in.</div>
+            </article>
+
+            <article id="composer-card" class="card composer-card">
+                <h2 id="composer-title">⚖️ Log Weigh-In</h2>
+                <p class="composer-step">Step 2 of 2</p>
+                <form id="inline-form" class="inline-form"></form>
             </article>
 
             <article class="card">
@@ -425,6 +493,13 @@
             </div>
         </div>
     </dialog>
+
+    <nav class="bottom-nav" aria-label="Primary">
+        <div class="bottom-nav-inner">
+            <a class="bottom-tab active" href="/">📝 Log</a>
+            <a class="bottom-tab" href="/insights">📊 Insights</a>
+        </div>
+    </nav>
 
     <script type="module" src="/static/v2/log.js"></script>
 </body>
