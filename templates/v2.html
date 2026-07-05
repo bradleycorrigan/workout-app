@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pulseboard Insights</title>
+    <script>
+        (function() {
+            try {
+                var stored = window.localStorage.getItem("pulseboard-theme");
+                var mode = (stored === "dark" || stored === "light")
+                    ? stored
+                    : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                document.documentElement.setAttribute("data-theme", mode);
+            } catch (e) {
+                document.documentElement.setAttribute("data-theme", "light");
+            }
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -30,7 +43,7 @@
                 radial-gradient(900px 520px at 105% 0%, color-mix(in srgb, var(--pb-c4) 16%, transparent), transparent 52%),
                 linear-gradient(180deg, var(--pb-bg-start), var(--pb-bg-mid) 48%, var(--pb-bg-end) 100%);
         }
-        .page { max-width: 900px; margin: 0 auto; padding: 14px 14px 94px; }
+        .page { max-width: 900px; margin: 0 auto; padding: 14px 14px 106px; }
         .hero, .card, .metric-tile {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -479,6 +492,8 @@
             .filters { grid-template-columns: 1fr; }
             .hero-actions { justify-content: flex-start; }
             .month-picker { min-width: 0; }
+            .page { padding: 12px 12px 128px; }
+            .stack { gap: 10px; }
             .bottom-tab {
                 min-height: 34px;
                 padding: 0 12px;
