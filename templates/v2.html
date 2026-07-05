@@ -7,14 +7,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/v2/palette.css">
     <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
     <style>
         :root {
-            --sand-0: #f7f2e6;
-            --ink-0: #1a2f2b;
-            --surface: rgba(255, 255, 255, 0.66);
-            --border: rgba(44, 72, 66, 0.16);
-            --shadow: 0 16px 34px rgba(26, 47, 43, 0.12);
+            --sand-0: var(--pb-bg-start);
+            --ink-0: var(--pb-ink);
+            --surface: var(--pb-surface);
+            --border: var(--pb-border);
+            --shadow: 0 16px 34px var(--pb-shadow);
+            --motion-smooth: cubic-bezier(0.22, 1, 0.36, 1);
         }
         * { box-sizing: border-box; }
         input, button { font: inherit; color: inherit; }
@@ -24,9 +26,9 @@
             font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
             color: var(--ink-0);
             background:
-                radial-gradient(1200px 680px at -10% -12%, rgba(31, 122, 104, 0.22), transparent 56%),
-                radial-gradient(900px 520px at 105% 0%, rgba(36, 80, 165, 0.16), transparent 52%),
-                linear-gradient(180deg, var(--sand-0), #efe8d8 48%, #e8e0cf 100%);
+                radial-gradient(1200px 680px at -10% -12%, color-mix(in srgb, var(--pb-c3) 22%, transparent), transparent 56%),
+                radial-gradient(900px 520px at 105% 0%, color-mix(in srgb, var(--pb-c4) 16%, transparent), transparent 52%),
+                linear-gradient(180deg, var(--pb-bg-start), var(--pb-bg-mid) 48%, var(--pb-bg-end) 100%);
         }
         .page { max-width: 900px; margin: 0 auto; padding: 14px; }
         .hero, .card, .metric-tile {
@@ -36,19 +38,66 @@
             box-shadow: var(--shadow);
             backdrop-filter: blur(8px);
         }
-        .hero { padding: 14px; margin-bottom: 12px; }
+        :root:not([data-theme="dark"]) .hero,
+        :root:not([data-theme="dark"]) .card,
+        :root:not([data-theme="dark"]) .metric-tile {
+            background: linear-gradient(
+                165deg,
+                color-mix(in srgb, var(--pb-surface-strong) 92%, white),
+                color-mix(in srgb, var(--pb-surface) 94%, var(--pb-c1))
+            );
+            border-color: color-mix(in srgb, var(--pb-c4) 24%, transparent);
+            box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 66%, transparent),
+                0 14px 30px color-mix(in srgb, var(--pb-c4) 14%, transparent),
+                0 30px 58px color-mix(in srgb, var(--pb-c5) 10%, transparent);
+        }
+        .hero {
+            padding: 14px;
+            margin-bottom: 12px;
+            position: relative;
+            z-index: 25;
+            overflow: visible;
+        }
         .hero-top {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
             flex-wrap: wrap;
+        }
+        .hero-actions {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .theme-toggle {
+            border-radius: 999px;
+            height: 34px;
+            padding: 0 12px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
+            background: color-mix(in srgb, var(--pb-surface) 76%, transparent);
+            color: var(--pb-link);
+            font-weight: 700;
+            cursor: pointer;
+        }
+        :root:not([data-theme="dark"]) .theme-toggle {
+            background: linear-gradient(
+                145deg,
+                color-mix(in srgb, var(--pb-surface-strong) 86%, white),
+                color-mix(in srgb, var(--pb-surface) 90%, var(--pb-c1))
+            );
+            border-color: color-mix(in srgb, var(--pb-c4) 24%, transparent);
         }
         h1 {
             margin: 0;
             font-family: "Sora", sans-serif;
             font-size: clamp(1.25rem, 3.2vw, 1.9rem);
-            color: #123730;
+            letter-spacing: -0.012em;
+            font-weight: 780;
+            color: var(--pb-heading);
         }
         .nav-links a {
             display: inline-block;
@@ -56,79 +105,212 @@
             text-decoration: none;
             border-radius: 999px;
             padding: 7px 12px;
-            border: 1px solid rgba(31, 122, 104, 0.3);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
             font-weight: 700;
-            color: #1f6657;
-            background: rgba(255, 255, 255, 0.74);
+            color: var(--pb-link);
+            background: var(--pb-surface-strong);
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), background 220ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
         }
         .nav-links a.active {
-            background: linear-gradient(135deg, #1f7a68, #15574a);
-            color: #f4fffb;
-            border-color: transparent;
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--pb-brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--pb-brand-dark) 74%, var(--pb-surface))
+            );
+            color: var(--pb-on-brand);
+            border-color: color-mix(in srgb, var(--pb-brand-dark) 42%, transparent);
+            box-shadow: 0 8px 16px color-mix(in srgb, var(--pb-brand-dark) 20%, transparent);
         }
         .filters {
             margin-top: 10px;
             display: grid;
-            grid-template-columns: 1fr 1fr auto;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: start;
+        }
+        #apply {
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 28%, transparent);
+            height: 40px;
+            padding: 0 14px;
+            background: color-mix(in srgb, var(--pb-surface) 82%, white);
+        }
+        .month-picker {
+            position: relative;
+            min-width: 320px;
+        }
+        .month-picker-toggle {
+            width: 100%;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 28%, transparent);
+            min-height: 40px;
+            padding: 9px 14px;
+            background: color-mix(in srgb, var(--pb-surface) 82%, white);
+            color: var(--pb-ink-soft);
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+        }
+        :root:not([data-theme="dark"]) .month-picker-toggle,
+        :root:not([data-theme="dark"]) .month-picker-btn,
+        :root:not([data-theme="dark"]) .month-picker-menu {
+            border-color: color-mix(in srgb, var(--pb-c4) 24%, transparent);
+            box-shadow: 0 10px 20px color-mix(in srgb, var(--pb-c4) 10%, transparent);
+        }
+        .month-picker-menu {
+            position: absolute;
+            z-index: 120;
+            left: 0;
+            right: 0;
+            margin-top: 6px;
+            border-radius: 14px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 28%, transparent);
+            background: var(--pb-surface-strong);
+            box-shadow: 0 14px 24px var(--pb-shadow);
+            padding: 8px;
+        }
+        .month-picker-options {
+            max-height: 210px;
+            overflow-y: auto;
+            display: grid;
+            gap: 6px;
+            padding-right: 3px;
+        }
+        .month-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 10px;
+            padding: 6px 8px;
+            color: var(--pb-heading);
+            font-size: 0.9rem;
+        }
+        .month-option:hover {
+            background: color-mix(in srgb, var(--pb-brand-soft) 26%, transparent);
+        }
+        .month-option input {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--pb-brand-dark);
+        }
+        .month-picker-actions {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
             gap: 8px;
         }
-        .filters input, .filters button {
+        .month-picker-btn {
             border-radius: 999px;
-            border: 1px solid rgba(26, 47, 43, 0.2);
-            height: 38px;
-            padding: 0 12px;
-            background: rgba(255, 255, 255, 0.86);
-        }
-        .filters button {
-            border: none;
-            background: linear-gradient(135deg, #1f7a68, #15574a);
-            color: #f4fffb;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 25%, transparent);
+            background: color-mix(in srgb, var(--pb-surface) 78%, transparent);
+            color: var(--pb-link);
+            height: 32px;
+            padding: 0 10px;
+            font-size: 0.76rem;
             font-weight: 700;
             cursor: pointer;
         }
-        .status { margin-top: 8px; font-size: 0.82rem; color: #375d54; }
+        .filters-help {
+            margin: 8px 0 0;
+            font-size: 0.78rem;
+            color: var(--pb-ink-muted);
+        }
+        #apply {
+            border: 1px solid color-mix(in srgb, var(--pb-brand-dark) 42%, transparent);
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--pb-brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--pb-brand-dark) 76%, var(--pb-surface))
+            );
+            color: var(--pb-on-brand);
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 10px 20px color-mix(in srgb, var(--pb-brand-dark) 22%, transparent);
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), filter 220ms var(--motion-smooth);
+        }
+        .status { margin-top: 8px; font-size: 0.82rem; color: var(--pb-ink-muted); }
+        .chart-summary {
+            margin: 0 0 8px;
+            font-size: 0.82rem;
+            color: var(--pb-ink-muted);
+            background: var(--pb-surface-strong);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
+            border-radius: 10px;
+            padding: 7px 9px;
+        }
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 10px;
             margin-top: 12px;
+            position: relative;
+            z-index: 1;
         }
         .metric-tile { padding: 12px; }
         .metric-label {
             font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #41645c;
+            color: var(--pb-ink-muted);
             font-weight: 700;
         }
         .metric-value {
             margin-top: 4px;
             font-size: 2rem;
             font-family: "Sora", sans-serif;
-            color: #1f5f4e;
+            color: var(--pb-brand-dark);
             line-height: 1;
         }
-        .stack { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+        .stack {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 12px;
+            position: relative;
+            z-index: 1;
+        }
         .card { padding: 12px; }
         .card h2 {
             margin: 0 0 10px;
             font-family: "Sora", sans-serif;
             font-size: 1rem;
-            color: #173b33;
+            letter-spacing: 0.008em;
+            font-weight: 720;
+            color: var(--pb-heading);
         }
         .chart { width: 100%; min-height: 260px; }
         .chart.short { min-height: 210px; }
         .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .mix-controls {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .mix-reset {
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--pb-focus) 32%, transparent);
+            background: color-mix(in srgb, var(--pb-surface) 80%, transparent);
+            color: var(--pb-focus);
+            padding: 5px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth);
+        }
+        .mix-reset[hidden] { display: none; }
         .legend-chip {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             border-radius: 999px;
             padding: 4px 8px;
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(44, 72, 66, 0.18);
+            background: var(--pb-surface-strong);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
             font-size: 0.76rem;
-            color: #284a43;
+            color: var(--pb-heading);
         }
         .dot { width: 10px; height: 10px; border-radius: 50%; }
         .heatmap-legend {
@@ -138,28 +320,124 @@
             gap: 10px;
             align-items: center;
         }
+        .heatmap-detail {
+            margin-top: 10px;
+            border-radius: 10px;
+            border: 1px solid color-mix(in srgb, var(--pb-focus) 22%, transparent);
+            background: var(--pb-surface-strong);
+            padding: 10px;
+            font-size: 0.82rem;
+            color: var(--pb-ink-soft);
+            min-height: 44px;
+        }
+        .heatmap-detail-title {
+            margin: 0 0 8px;
+            font-weight: 700;
+            color: var(--pb-focus);
+            font-size: 0.84rem;
+        }
+        .heatmap-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 7px;
+        }
+        .heatmap-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
+            background: var(--pb-surface-strong);
+            padding: 2px 8px;
+            font-size: 0.74rem;
+            color: var(--pb-ink-soft);
+        }
+        .heatmap-chip.selected {
+            border-color: transparent;
+            background: linear-gradient(135deg, var(--pb-brand), var(--pb-brand-dark));
+            color: var(--pb-on-brand);
+            font-weight: 700;
+        }
+        .heatmap-meta-line {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--pb-ink-muted);
+        }
         .heatmap-ramp {
             height: 10px;
             border-radius: 999px;
-            background: linear-gradient(90deg, #edf6f2, #c4e7da, #80c9b1, #2e8f72);
+            background: linear-gradient(90deg, var(--pb-c1), var(--pb-c2), var(--pb-c3), var(--pb-c4));
             border: 1px solid rgba(44, 72, 66, 0.2);
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
         }
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
         th, td {
-            border-bottom: 1px solid rgba(36, 80, 165, 0.14);
+            border-bottom: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
             padding: 7px 5px;
             text-align: left;
             white-space: nowrap;
         }
+        .theme-toggle,
+        .month-picker-toggle,
+        .month-picker-btn {
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
+        }
+        .theme-toggle:hover,
+        .nav-links a:hover,
+        .month-picker-toggle:hover,
+        .month-picker-btn:hover,
+        #apply:hover,
+        .mix-reset:hover {
+            transform: translateY(-1px);
+        }
+        .theme-toggle:hover,
+        .month-picker-toggle:hover,
+        .month-picker-btn:hover,
+        .nav-links a:hover,
+        .mix-reset:hover {
+            box-shadow: 0 10px 18px color-mix(in srgb, var(--pb-c5) 10%, transparent);
+        }
+        #apply:hover {
+            box-shadow: 0 14px 24px color-mix(in srgb, var(--pb-brand-dark) 24%, transparent);
+            filter: saturate(1.05);
+        }
+        .theme-toggle:focus-visible,
+        .nav-links a:focus-visible,
+        .month-picker-toggle:focus-visible,
+        .month-picker-btn:focus-visible,
+        #apply:focus-visible,
+        .mix-reset:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--pb-focus) 58%, transparent);
+            outline-offset: 2px;
+        }
         th {
-            color: #2e554e;
+            color: var(--pb-ink-soft);
             text-transform: uppercase;
             letter-spacing: 0.4px;
             font-size: 0.72rem;
         }
         @media (max-width: 720px) {
             .filters { grid-template-columns: 1fr; }
+            .hero-actions { justify-content: flex-start; }
+            .month-picker { min-width: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
         }
     </style>
 </head>
@@ -168,17 +446,29 @@
         <section class="hero">
             <div class="hero-top">
                 <h1>📊 Insights</h1>
-                <div class="nav-links">
-                    <a href="/">📝 Log</a>
-                    <a href="/insights" class="active">📊 Insights</a>
+                <div class="hero-actions">
+                    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙 Dark</button>
+                    <div class="nav-links">
+                        <a href="/">📝 Log</a>
+                        <a href="/insights" class="active">📊 Insights</a>
+                    </div>
                 </div>
             </div>
             <div class="filters">
-                <input id="start-date" type="date" aria-label="Start date">
-                <input id="end-date" type="date" aria-label="End date">
-                <button id="apply">Apply Dates</button>
+                <div id="month-picker" class="month-picker">
+                    <button id="month-picker-toggle" class="month-picker-toggle" type="button" aria-expanded="false" aria-controls="month-picker-menu">Select months</button>
+                    <div id="month-picker-menu" class="month-picker-menu" hidden>
+                        <div id="month-picker-options" class="month-picker-options"></div>
+                        <div class="month-picker-actions">
+                            <button id="month-picker-clear" class="month-picker-btn" type="button">Default View</button>
+                            <button id="month-picker-done" class="month-picker-btn" type="button">Done</button>
+                        </div>
+                    </div>
+                </div>
+                <button id="apply">Apply Months</button>
             </div>
-            <div id="status" class="status">Loading charts...</div>
+            <p class="filters-help">Pick one or more months. If none are checked, default view uses current month plus 3 previous months.</p>
+            <div id="status" class="status" role="status" aria-live="polite">Loading charts...</div>
         </section>
 
         <section class="metrics-grid">
@@ -199,31 +489,39 @@
         <section class="stack">
             <article class="card">
                 <h2>Estimated Concentration</h2>
+                <p id="conc-summary" class="chart-summary">Loading concentration insight...</p>
                 <div id="conc-chart" class="chart"></div>
             </article>
 
             <article class="card">
                 <h2>Weight Trend</h2>
+                <p id="weight-summary" class="chart-summary">Loading weight insight...</p>
                 <div id="weight-chart" class="chart"></div>
             </article>
 
             <article class="card">
                 <h2>Workout Mix</h2>
+                <p id="mix-summary" class="chart-summary">Loading mix context...</p>
                 <div id="mix-chart" class="chart"></div>
+                <div class="mix-controls">
+                    <button id="mix-reset" class="mix-reset" type="button" hidden>Reset to full month</button>
+                </div>
                 <div class="legend">
-                    <span class="legend-chip"><span class="dot" style="background:#7db4d8"></span>Gym</span>
-                    <span class="legend-chip"><span class="dot" style="background:#4f8dff"></span>Pool Swim</span>
-                    <span class="legend-chip"><span class="dot" style="background:#4d9c76"></span>Lido/Res Swim</span>
+                    <span class="legend-chip"><span class="dot" style="background:var(--pb-mix-gym)"></span>Gym</span>
+                    <span class="legend-chip"><span class="dot" style="background:var(--pb-mix-pool)"></span>Pool Swim</span>
+                    <span class="legend-chip"><span class="dot" style="background:var(--pb-mix-lido)"></span>Lido/Res Swim</span>
                 </div>
             </article>
 
             <article class="card">
                 <h2>Workout Day Heatmap</h2>
+                <p id="heatmap-summary" class="chart-summary">Loading heatmap insight...</p>
                 <div id="heatmap-chart" class="chart short"></div>
                 <div class="heatmap-legend">
                     <div class="heatmap-ramp"></div>
                     <span class="legend-chip">Lower to higher activity</span>
                 </div>
+                <div id="heatmap-detail" class="heatmap-detail">Tap a day to inspect sessions and value.</div>
             </article>
 
             <article class="card">

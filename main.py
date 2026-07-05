@@ -283,95 +283,9 @@ def apply_chart_theme(fig: go.Figure, title: str, y_title: str = "") -> go.Figur
     return fig
 
 
-@app.get("/legacy", response_class=HTMLResponse)
-async def home_legacy(request: Request) -> HTMLResponse:
-    conn = await get_connection()
-    try:
-        weigh_history = rows_to_dicts(
-            await conn.fetch(
-                """
-                SELECT weigh_in_id, weigh_date, weight_kg
-                FROM weigh_ins
-                WHERE user_id = $1
-                ORDER BY weigh_date DESC
-                """,
-                USER_ID,
-            )
-        )
-
-        injection_history = rows_to_dicts(
-            await conn.fetch(
-                """
-                SELECT injection_id, injection_date, dose_mg
-                FROM injections
-                WHERE user_id = $1
-                ORDER BY injection_date DESC
-                """,
-                USER_ID,
-            )
-        )
-
-        workout_history = rows_to_dicts(
-            await conn.fetch(
-                """
-                SELECT workout_id, workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp, notes
-                FROM workouts
-                WHERE user_id = $1
-                ORDER BY workout_date DESC, workout_id DESC
-                """,
-                USER_ID,
-            )
-        )
-
-        summary_row = await conn.fetchrow(
-            """
-            SELECT
-                TO_CHAR(CURRENT_DATE, 'Mon YYYY') AS month_label,
-                (
-                    SELECT COUNT(*)
-                    FROM workouts
-                    WHERE user_id = $1
-                      AND workout_date >= DATE_TRUNC('month', CURRENT_DATE)::date
-                      AND workout_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
-                ) AS month_workouts,
-                (
-                    SELECT COUNT(*)
-                    FROM weigh_ins
-                    WHERE user_id = $1
-                      AND weigh_date >= DATE_TRUNC('month', CURRENT_DATE)::date
-                      AND weigh_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
-                ) AS month_weigh_ins,
-                (
-                    SELECT ROUND(COALESCE(SUM(workout_value_gbp), 0)::numeric, 2)
-                    FROM workouts
-                    WHERE user_id = $1
-                      AND workout_date >= DATE_TRUNC('month', CURRENT_DATE)::date
-                      AND workout_date < (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::date
-                ) AS month_value_gbp
-            """,
-            USER_ID,
-        )
-    finally:
-        await conn.close()
-
-    if summary_row is None:
-        raise RuntimeError("Failed to load summary metrics.")
-
-    context = {
-        "request": request,
-        "workout_options": [
-            {"value": key, "price": price}
-            for key, price in WORKOUT_PRICES_GBP.items()
-        ],
-        "month_label": str(summary_row["month_label"]),
-        "weigh_history": weigh_history,
-        "injection_history": injection_history,
-        "workout_history": workout_history,
-        "month_workouts": int(summary_row["month_workouts"]),
-        "month_weigh_ins": int(summary_row["month_weigh_ins"]),
-        "month_value_gbp": float(summary_row["month_value_gbp"]),
-    }
-    return templates.TemplateResponse(request=request, name="index.html", context=context)
+@app.get("/legacy", include_in_schema=False)
+async def home_legacy() -> None:
+    raise HTTPException(status_code=410, detail="Legacy mode has been sunset. Use '/' or '/insights'.")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -862,7 +776,7 @@ async def workout_heatmap_chart(
     try:
         rows = await conn.fetch(
             """
-            SELECT workout_date, workout_type
+            SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
             FROM workouts
             WHERE user_id = $1
             ORDER BY workout_date;
@@ -878,6 +792,7 @@ async def workout_heatmap_chart(
     selected_exercise = normalize_exercise_filter(exercise)
     df = pd.DataFrame(rows_to_dicts(rows))
     df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df["workout_value_gbp"] = pd.to_numeric(df["workout_value_gbp"], errors="coerce").fillna(0.0)
     df = apply_date_window(df, "workout_date", start_date, end_date)
     df["bucket"] = df["workout_type"].apply(workout_bucket)
     df = apply_workout_exercise_filter(df, selected_exercise)
@@ -987,7 +902,7 @@ async def workout_mix_chart(
     try:
         rows = await conn.fetch(
             """
-            SELECT workout_date, workout_type
+            SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
             FROM workouts
             WHERE user_id = $1
             ORDER BY workout_date;
@@ -1003,6 +918,7 @@ async def workout_mix_chart(
     selected_exercise = normalize_exercise_filter(exercise)
     df = pd.DataFrame(rows_to_dicts(rows))
     df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df["workout_value_gbp"] = pd.to_numeric(df["workout_value_gbp"], errors="coerce").fillna(0.0)
     df = apply_date_window(df, "workout_date", start_date, end_date)
     df["month"] = df["workout_date"].dt.to_period("M").astype(str)
     df["bucket"] = df["workout_type"].apply(workout_bucket)
@@ -1301,7 +1217,7 @@ async def workout_heatmap_data(
     try:
         rows = await conn.fetch(
             """
-            SELECT workout_date, workout_type
+            SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
             FROM workouts
             WHERE user_id = $1
             ORDER BY workout_date;
@@ -1326,6 +1242,7 @@ async def workout_heatmap_data(
 
     df = pd.DataFrame(rows_to_dicts(rows))
     df["workout_date"] = pd.to_datetime(df["workout_date"])
+    df["workout_value_gbp"] = pd.to_numeric(df["workout_value_gbp"], errors="coerce").fillna(0.0)
     df = apply_date_window(df, "workout_date", start_date, end_date)
     df["bucket"] = df["workout_type"].apply(workout_bucket)
     df = apply_workout_exercise_filter(df, selected_exercise)
@@ -1341,12 +1258,11 @@ async def workout_heatmap_data(
             "cells": [],
         }
 
-    df["month"] = df["workout_date"].dt.strftime("%b")
+    df["month"] = df["workout_date"].dt.to_period("M").astype(str)
     df["day"] = df["workout_date"].dt.day
 
     month_order = (
-        df.assign(month_key=df["workout_date"].dt.to_period("M").astype(str))
-        .sort_values("workout_date")["month"]
+        df.sort_values("workout_date")["month"]
         .drop_duplicates()
         .tolist()
     )
@@ -1361,10 +1277,30 @@ async def workout_heatmap_data(
         .agg(lambda s: compact_workout_label(s.tolist(), mobile=False))
         .reset_index(name="label")
     )
+    grouped_value = (
+        df.groupby(["month", "day"])["workout_value_gbp"]
+        .sum()
+        .reset_index(name="value_gbp")
+    )
+    grouped_types = (
+        df.groupby(["month", "day", "workout_type"], as_index=False)
+        .size()
+        .rename(columns={"size": "count"})
+    )
     label_lookup = {
         (str(row["month"]), int(row["day"])): str(row["label"])
         for _, row in grouped_labels.iterrows()
     }
+    value_lookup = {
+        (str(row["month"]), int(row["day"])): round(float(row["value_gbp"]), 2)
+        for _, row in grouped_value.iterrows()
+    }
+    types_lookup: dict[tuple[str, int], dict[str, int]] = {}
+    for _, row in grouped_types.iterrows():
+        key = (str(row["month"]), int(row["day"]))
+        if key not in types_lookup:
+            types_lookup[key] = {}
+        types_lookup[key][str(row["workout_type"])] = int(row["count"])
 
     cells: list[dict[str, Any]] = []
     for _, row in grouped.iterrows():
@@ -1376,6 +1312,8 @@ async def workout_heatmap_data(
                 "day": day,
                 "count": int(row["count"]),
                 "label": label_lookup.get((month, day), ""),
+                "value_gbp": value_lookup.get((month, day), 0.0),
+                "workout_types": types_lookup.get((month, day), {}),
             }
         )
 

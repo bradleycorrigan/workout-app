@@ -76,7 +76,8 @@ export function renderSkeletonState(frame) {
       .attr("width", barW)
       .attr("height", h)
       .attr("rx", 6)
-      .attr("fill", "rgba(36, 80, 165, 0.12)");
+      .attr("fill", CHART_THEME.palette.grid)
+      .attr("opacity", 0.5);
   }
 }
 

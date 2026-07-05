@@ -7,16 +7,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="/static/v2/palette.css">
     <style>
         :root {
-            --sand-0: #f7f2e6;
-            --ink-0: #1a2f2b;
-            --surface: rgba(255, 255, 255, 0.66);
-            --border: rgba(44, 72, 66, 0.16);
-            --shadow: 0 16px 34px rgba(26, 47, 43, 0.12);
-            --brand: #1f7a68;
-            --brand-dark: #15574a;
-            --brand-wash: rgba(31, 122, 104, 0.12);
+            --sand-0: var(--pb-bg-start);
+            --ink-0: var(--pb-ink);
+            --surface: var(--pb-surface);
+            --border: var(--pb-border);
+            --shadow: 0 16px 34px var(--pb-shadow);
+            --brand: var(--pb-brand);
+            --brand-dark: var(--pb-brand-dark);
+            --motion-smooth: cubic-bezier(0.22, 1, 0.36, 1);
         }
         * { box-sizing: border-box; }
         input, select, button { font: inherit; color: inherit; }
@@ -26,9 +27,9 @@
             font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
             color: var(--ink-0);
             background:
-                radial-gradient(1200px 680px at -10% -12%, rgba(31, 122, 104, 0.22), transparent 56%),
-                radial-gradient(900px 520px at 105% 0%, rgba(36, 80, 165, 0.16), transparent 52%),
-                linear-gradient(180deg, var(--sand-0), #efe8d8 48%, #e8e0cf 100%);
+                radial-gradient(1200px 680px at -10% -12%, color-mix(in srgb, var(--pb-c3) 22%, transparent), transparent 56%),
+                radial-gradient(900px 520px at 105% 0%, color-mix(in srgb, var(--pb-c4) 16%, transparent), transparent 52%),
+                linear-gradient(180deg, var(--pb-bg-start), var(--pb-bg-mid) 48%, var(--pb-bg-end) 100%);
         }
         .page { max-width: 900px; margin: 0 auto; padding: 14px; }
         .hero, .card {
@@ -37,6 +38,19 @@
             border-radius: 18px;
             box-shadow: var(--shadow);
             backdrop-filter: blur(8px);
+        }
+        :root:not([data-theme="dark"]) .hero,
+        :root:not([data-theme="dark"]) .card {
+            background: linear-gradient(
+                165deg,
+                color-mix(in srgb, var(--pb-surface-strong) 92%, white),
+                color-mix(in srgb, var(--pb-surface) 94%, var(--pb-c1))
+            );
+            border-color: color-mix(in srgb, var(--pb-c4) 24%, transparent);
+            box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 66%, transparent),
+                0 14px 30px color-mix(in srgb, var(--pb-c4) 14%, transparent),
+                0 30px 58px color-mix(in srgb, var(--pb-c5) 10%, transparent);
         }
         .hero { padding: 14px; margin-bottom: 12px; position: relative; overflow: hidden; }
         .hero::after {
@@ -47,44 +61,75 @@
             right: -48px;
             top: -58px;
             border-radius: 999px;
-            background: radial-gradient(circle at center, rgba(31, 122, 104, 0.22), transparent 70%);
+            background: radial-gradient(circle at center, color-mix(in srgb, var(--pb-c3) 24%, transparent), transparent 70%);
             pointer-events: none;
         }
         .hero-top {
             display: flex;
             justify-content: space-between;
-            align-items: center;
             gap: 8px;
             flex-wrap: wrap;
+        }
+        .hero-actions {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .theme-toggle {
+            border-radius: 999px;
+            height: 34px;
+            padding: 0 12px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
+            background: color-mix(in srgb, var(--pb-surface) 76%, transparent);
+            color: var(--pb-link);
+            font-weight: 700;
+            cursor: pointer;
+        }
+        :root:not([data-theme="dark"]) .theme-toggle {
+            background: linear-gradient(
+                145deg,
+                color-mix(in srgb, var(--pb-surface-strong) 86%, white),
+                color-mix(in srgb, var(--pb-surface) 90%, var(--pb-c1))
+            );
+            border-color: color-mix(in srgb, var(--pb-c4) 24%, transparent);
         }
         h1 {
             margin: 0;
             font-family: "Sora", sans-serif;
             font-size: clamp(1.25rem, 3.2vw, 1.9rem);
-            color: #123730;
+            letter-spacing: -0.012em;
+            font-weight: 780;
+            color: var(--pb-heading);
         }
         .nav-links a {
             display: inline-block;
             margin-left: 6px;
             text-decoration: none;
             border-radius: 999px;
-            padding: 7px 12px;
-            border: 1px solid rgba(31, 122, 104, 0.3);
+            padding: 6px 11px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 30%, transparent);
             font-weight: 700;
-            color: #1f6657;
-            background: rgba(255, 255, 255, 0.74);
+            color: var(--pb-link);
+            background: var(--pb-surface-strong);
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), background 220ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
         }
         .nav-links a.active {
-            background: linear-gradient(135deg, #1f7a68, #15574a);
-            color: #f4fffb;
-            border-color: transparent;
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--pb-brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--pb-brand-dark) 74%, var(--pb-surface))
+            );
+            color: var(--pb-on-brand);
+            border-color: color-mix(in srgb, var(--pb-brand-dark) 42%, transparent);
+            box-shadow: 0 8px 16px color-mix(in srgb, var(--pb-brand-dark) 20%, transparent);
         }
-        .status { margin-top: 8px; font-size: 0.82rem; color: #375d54; }
+        .status { margin-top: 8px; font-size: 0.82rem; color: var(--pb-ink-muted); }
         .hero-copy {
             margin: 8px 0 0;
             max-width: 60ch;
             font-size: 0.88rem;
-            color: #30554d;
+            color: var(--pb-ink-muted);
         }
         .stack { display: grid; grid-template-columns: 1fr; gap: 12px; }
         .card { padding: 12px; }
@@ -92,7 +137,9 @@
             margin: 0 0 10px;
             font-family: "Sora", sans-serif;
             font-size: 1rem;
-            color: #173b33;
+            letter-spacing: 0.008em;
+            font-weight: 720;
+            color: var(--pb-heading);
         }
         .logger-flow {
             display: grid;
@@ -106,46 +153,48 @@
             font-size: 0.76rem;
             letter-spacing: 0.35px;
             text-transform: uppercase;
-            color: #355e55;
+            color: var(--pb-ink-muted);
             font-weight: 700;
         }
-        .logger-kind {
-            display: grid;
-        }
+        .logger-kind { display: grid; }
         .logger-flow select,
         .logger-flow button,
         .dialog-form input,
         .dialog-form select,
         .dialog-form button {
             border-radius: 999px;
-            border: 1px solid rgba(26, 47, 43, 0.2);
-            height: 40px;
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 28%, transparent);
+            height: 36px;
             padding: 0 12px;
-            background: rgba(255, 255, 255, 0.9);
+            background: var(--pb-surface-strong);
             outline: none;
+            color: var(--pb-ink-soft);
         }
         .logger-flow button,
         .dialog-form button {
-            border: none;
-            background: linear-gradient(135deg, var(--brand), var(--brand-dark));
-            color: #f4fffb;
+            border: 1px solid color-mix(in srgb, var(--brand-dark) 42%, transparent);
+            background: linear-gradient(
+                135deg,
+                color-mix(in srgb, var(--brand) 68%, var(--pb-surface-strong)),
+                color-mix(in srgb, var(--brand-dark) 76%, var(--pb-surface))
+            );
+            color: var(--pb-on-brand);
             font-weight: 700;
             cursor: pointer;
         }
         .logger-flow button {
-            box-shadow: 0 10px 20px rgba(21, 87, 74, 0.25);
-            transition: transform 160ms ease, box-shadow 160ms ease;
+            box-shadow: 0 10px 20px color-mix(in srgb, var(--pb-c4) 28%, transparent);
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth);
         }
         .logger-flow button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 14px 22px rgba(21, 87, 74, 0.28);
+            box-shadow: 0 14px 22px color-mix(in srgb, var(--pb-c4) 32%, transparent);
         }
         .log-preview {
             margin-top: 10px;
             font-size: 0.84rem;
-            color: #2a5149;
-            background: var(--brand-wash);
-            border: 1px solid rgba(31, 122, 104, 0.2);
+            color: var(--pb-ink-soft);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 22%, transparent);
             border-radius: 10px;
             padding: 8px 10px;
         }
@@ -159,23 +208,22 @@
             align-items: center;
             gap: 6px;
             border-radius: 10px;
-            border: 1px solid rgba(44, 72, 66, 0.2);
-            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
+            background: var(--pb-surface-strong);
             padding: 8px 10px;
             font-size: 0.82rem;
-            color: #21463f;
+            color: var(--pb-ink-soft);
         }
-        .type-chip input[type="checkbox"] { accent-color: #1f7a68; }
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
         th, td {
-            border-bottom: 1px solid rgba(36, 80, 165, 0.14);
+            border-bottom: 1px solid color-mix(in srgb, var(--pb-c4) 14%, transparent);
             padding: 7px 5px;
             text-align: left;
             white-space: nowrap;
         }
         th {
-            color: #2e554e;
+            color: var(--pb-ink-soft);
             text-transform: uppercase;
             letter-spacing: 0.4px;
             font-size: 0.72rem;
@@ -184,67 +232,83 @@
             margin: 0 0 8px;
             font-family: "Sora", sans-serif;
             font-size: 0.9rem;
-            color: #173b33;
+            color: var(--pb-heading);
         }
         .history-subtitle {
             margin: 0 0 10px;
-            color: #3a6058;
+            color: var(--pb-ink-muted);
             font-size: 0.83rem;
         }
         .history-actions { display: inline-flex; gap: 6px; }
         .action-btn {
-            border: 1px solid rgba(36, 80, 165, 0.25);
+            border: 1px solid color-mix(in srgb, var(--pb-focus) 28%, transparent);
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.8);
-            color: #204c92;
+            background: var(--pb-surface-strong);
+            color: var(--pb-focus);
             height: 28px;
             padding: 0 10px;
             font-size: 0.74rem;
             font-weight: 700;
-            cursor: pointer;
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
         }
         .action-btn[data-action="delete"] {
-            border-color: rgba(154, 33, 43, 0.28);
-            color: #8a1f2c;
+            border-color: color-mix(in srgb, var(--pb-danger) 34%, transparent);
+            color: var(--pb-danger);
         }
         dialog {
-            border: 1px solid rgba(44, 72, 66, 0.2);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 24%, transparent);
             border-radius: 16px;
             padding: 0;
             box-shadow: var(--shadow);
             width: min(560px, calc(100vw - 30px));
         }
-        dialog::backdrop { background: rgba(0, 26, 24, 0.34); }
+        dialog::backdrop { background: color-mix(in srgb, var(--pb-c5) 34%, transparent); }
         .dialog-body { padding: 14px; }
         .dialog-body h2 {
             margin: 2px 0 4px;
             font-family: "Sora", sans-serif;
             font-size: 1rem;
-            color: #173b33;
+            color: var(--pb-heading);
         }
         .dialog-step {
             margin: 0 0 10px;
             font-size: 0.79rem;
-            color: #3e645c;
+            color: var(--pb-ink-muted);
         }
         .dialog-form { display: grid; gap: 8px; }
         .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
         .ghost-btn {
             border-radius: 999px;
-            border: 1px solid rgba(44, 72, 66, 0.25);
-            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid color-mix(in srgb, var(--pb-c4) 25%, transparent);
+            background: var(--pb-surface-strong);
             height: 36px;
             padding: 0 12px;
             font-weight: 700;
             cursor: pointer;
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
+        }
+        .theme-toggle {
+            transition: transform 220ms var(--motion-smooth), box-shadow 240ms var(--motion-smooth), border-color 220ms var(--motion-smooth);
+        }
+        .theme-toggle:hover,
+        .nav-links a:hover,
+        .action-btn:hover,
+        .ghost-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 18px color-mix(in srgb, var(--pb-c5) 10%, transparent);
+        }
+        .theme-toggle:focus-visible,
+        .nav-links a:focus-visible,
+        .action-btn:focus-visible,
+        .ghost-btn:focus-visible,
+        .logger-flow button:focus-visible,
+        .dialog-form button:focus-visible {
+            outline: 2px solid color-mix(in srgb, var(--pb-focus) 58%, transparent);
+            outline-offset: 2px;
         }
         @media (max-width: 640px) {
-            .logger-flow {
-                grid-template-columns: 1fr;
-            }
-            .logger-flow button {
-                width: 100%;
-            }
+            .logger-flow { grid-template-columns: 1fr; }
+            .logger-flow button { width: 100%; }
         }
     </style>
 </head>
@@ -253,9 +317,12 @@
         <section class="hero">
             <div class="hero-top">
                 <h1>📝 Log</h1>
-                <div class="nav-links">
-                    <a href="/" class="active">📝 Log</a>
-                    <a href="/insights">📊 Insights</a>
+                <div class="hero-actions">
+                    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙 Dark</button>
+                    <div class="nav-links">
+                        <a href="/" class="active">📝 Log</a>
+                        <a href="/insights">📊 Insights</a>
+                    </div>
                 </div>
             </div>
             <p class="hero-copy">Pick one log type, complete the focused form, and review only the recent entries that matter for that flow.</p>

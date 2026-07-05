@@ -1,22 +1,33 @@
+function cssVar(name, fallback = "currentColor") {
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 export const CHART_THEME = {
   semantic: {
-    positive: "#1f7a68",
-    positiveSoft: "#8fcbba",
-    caution: "#d84545",
-    neutral: "#2e554e",
-    neutralSoft: "#edf6f2",
-    focus: "#1f4b86",
+    get positive() { return cssVar("--pb-brand"); },
+    get positiveSoft() { return cssVar("--pb-brand-soft"); },
+    get caution() { return cssVar("--pb-c4"); },
+    get neutral() { return cssVar("--pb-c4"); },
+    get neutralSoft() { return cssVar("--pb-c1"); },
+    get focus() { return cssVar("--pb-focus"); },
+    get onBrand() { return cssVar("--pb-on-brand"); },
   },
   palette: {
-    concentration: "#1f7a68",
-    weight: "#1f3f7a",
-    mixGym: "#7db4d8",
-    mixPool: "#4f8dff",
-    mixLido: "#4d9c76",
-    grid: "rgba(36, 80, 165, 0.14)",
-    axis: "rgba(36, 80, 165, 0.26)",
-    text: "#395952",
-    textMuted: "#345850",
+    get concentration() { return cssVar("--pb-line-primary"); },
+    get weight() { return cssVar("--pb-line-primary"); },
+    get mixGym() { return cssVar("--pb-mix-gym"); },
+    get mixPool() { return cssVar("--pb-mix-pool"); },
+    get mixLido() { return cssVar("--pb-mix-lido"); },
+    get heatmapHigh() { return cssVar("--pb-c3"); },
+    get grid() { return cssVar("--pb-grid"); },
+    get axis() { return cssVar("--pb-axis"); },
+    get text() { return cssVar("--pb-ink-soft"); },
+    get textMuted() { return cssVar("--pb-ink-muted"); },
+    get textStrong() { return cssVar("--pb-heading"); },
+    get surfaceStrong() { return cssVar("--pb-surface-strong"); },
+    get contrastStroke() { return cssVar("--pb-on-brand"); },
+    get detailText() { return cssVar("--pb-ink"); },
   },
   typography: {
     axis: 11,

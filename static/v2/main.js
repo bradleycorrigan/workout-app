@@ -1,6 +1,7 @@
 import { loadInsights, postEncoded, postForm } from "./api.js";
 import { renderHeatmapChart, renderLineChart, renderMixChart } from "./charts.js";
 import { renderHistory, renderMonthlySummary } from "./history.js";
+import { CHART_THEME } from "./chart-theme.js";
 
 const statusEl = document.getElementById("status");
 const exerciseEl = document.getElementById("exercise");
@@ -53,7 +54,7 @@ async function reload() {
     renderLineChart("conc-chart", conc.points || [], {
       xKey: "date",
       yKey: "estimated_concentration",
-      color: "#1f7a68",
+      color: CHART_THEME.palette.concentration,
       xLabel: "Date",
       yLabel: "Estimated level",
       markers: conc.injections || [],
@@ -63,7 +64,7 @@ async function reload() {
     renderLineChart("weight-chart", weight.points || [], {
       xKey: "date",
       yKey: "weight_kg",
-      color: "#1f3f7a",
+      color: CHART_THEME.palette.weight,
       xLabel: "Date",
       yLabel: "Weight (kg)",
       annotation: weeklyDiffLabel(weight.meta),

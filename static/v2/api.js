@@ -13,15 +13,45 @@ export async function fetchJson(url) {
 
 export async function loadInsights(filters) {
   const q = buildQuery(filters);
-  const [conc, weight, mix, heatmap, summary, dashboard] = await Promise.all([
-    fetchJson(`/api/insights/concentration?${q}`),
-    fetchJson(`/api/insights/weight-trend?${q}`),
-    fetchJson(`/api/insights/workout-mix?${q}`),
-    fetchJson(`/api/insights/workout-heatmap?${q}`),
-    fetchJson(`/api/insights/monthly-summary?${q}`),
-    fetchJson(`/api/summary`),
-  ]);
-  return { conc, weight, mix, heatmap, summary, dashboard };
+  const requests = {
+    conc: `/api/insights/concentration?${q}`,
+    weight: `/api/insights/weight-trend?${q}`,
+    mix: `/api/insights/workout-mix?${q}`,
+    heatmap: `/api/insights/workout-heatmap?${q}`,
+    summary: `/api/insights/monthly-summary?${q}`,
+    dashboard: `/api/summary`,
+  };
+  const defaults = {
+    conc: { points: [], injections: [], meta: {} },
+    weight: { points: [], meta: {} },
+    mix: { points: [] },
+    heatmap: { months: [], days: [], cells: [] },
+    summary: { rows: [] },
+    dashboard: {},
+  };
+
+  const entries = Object.entries(requests);
+  const settled = await Promise.allSettled(entries.map(([, url]) => fetchJson(url)));
+
+  const payload = {};
+  const errors = {};
+
+  settled.forEach((result, index) => {
+    const [key] = entries[index];
+    if (result.status === "fulfilled") {
+      payload[key] = result.value;
+    } else {
+      payload[key] = defaults[key];
+      errors[key] = result.reason?.message || "Request failed";
+    }
+  });
+
+  if (Object.keys(errors).length === entries.length) {
+    throw new Error("Could not load insights data.");
+  }
+
+  payload._errors = errors;
+  return payload;
 }
 
 export async function loadHistory(limit = 20) {

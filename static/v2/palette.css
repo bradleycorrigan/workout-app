@@ -1,0 +1,89 @@
+/*
+  QUICK THEME EDITS
+  1) Light mode tokens: edit :root below.
+  2) Dark mode tokens: edit :root[data-theme="dark"] below.
+  3) Keep semantic token names unchanged; templates/charts read these variables directly.
+*/
+
+:root {
+  --pb-c1: #EEF5EB;
+  --pb-c2: #CFE4C5;
+  --pb-c3: #769D63;
+  --pb-c4: #55633E;
+  --pb-c5: #2E372A;
+
+  --pb-bg-start: #F1F6EE;
+  --pb-bg-mid: #E7F0E3;
+  --pb-bg-end: #DCE8D6;
+
+  --pb-ink: #2F372A;
+  --pb-ink-soft: #3A4633;
+  --pb-ink-muted: #4E5D47;
+
+  --pb-surface: #F8FCF6;
+  --pb-surface-strong: #FFFFFF;
+  --pb-border: rgba(85, 99, 62, 0.2);
+  --pb-shadow: rgba(46, 55, 42, 0.14);
+
+  --pb-brand: #90B87C;
+  --pb-brand-dark: #789E65;
+  --pb-brand-soft: #D3E5C9;
+  --pb-on-brand: #122117;
+
+  --pb-focus: #58774A;
+  --pb-grid: rgba(85, 99, 62, 0.2);
+  --pb-axis: rgba(85, 99, 62, 0.32);
+
+  --pb-danger: #8A2F2C;
+  --pb-danger-soft: rgba(138, 47, 44, 0.28);
+
+  --pb-heading: #293125;
+  --pb-link: #47643A;
+
+  --pb-line-primary: #3E7B4D;
+  --pb-mix-gym: #A8D999;
+  --pb-mix-pool: #6F9650;
+  --pb-mix-lido: #4C5B36;
+}
+
+/* Dark mode preset */
+:root[data-theme="dark"] {
+  --pb-c1: #2A3A34;
+  --pb-c2: #355045;
+  --pb-c3: #6BA368;
+  --pb-c4: #515B3A;
+  --pb-c5: #1C241D;
+
+  --pb-bg-start: #1F2B25;
+  --pb-bg-mid: #18211D;
+  --pb-bg-end: #111814;
+
+  --pb-ink: #EAF4EF;
+  --pb-ink-soft: #DCECE5;
+  --pb-ink-muted: #B9CEC4;
+
+  --pb-surface: #1B2621;
+  --pb-surface-strong: #243229;
+  --pb-border: rgba(163, 199, 147, 0.28);
+  --pb-shadow: rgba(0, 0, 0, 0.44);
+
+  --pb-brand: #77B48A;
+  --pb-brand-dark: #4F7E5F;
+  --pb-brand-soft: #98CFA8;
+  --pb-on-brand: #102216;
+
+  --pb-focus: #8CCB87;
+  --pb-grid: rgba(154, 186, 138, 0.24);
+  --pb-axis: rgba(154, 186, 138, 0.36);
+
+  --pb-danger: #FF9AA0;
+  --pb-danger-soft: rgba(255, 154, 160, 0.34);
+
+  --pb-heading: #F3FAF6;
+  --pb-link: #C6E6BF;
+
+  --pb-line-primary: #8EDB8A;
+  --pb-mix-gym: #9CFC97;
+  --pb-mix-pool: #7C9C52;
+  --pb-mix-lido: #465332;
+}

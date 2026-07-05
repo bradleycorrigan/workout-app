@@ -12,6 +12,7 @@ const dialogStep = document.getElementById("dialog-step");
 const logPreview = document.getElementById("log-preview");
 const historyTitle = document.getElementById("history-title");
 const historySubtitle = document.getElementById("history-subtitle");
+const themeToggleEl = document.getElementById("theme-toggle");
 
 let historyCache = { weigh_ins: [], injections: [], workouts: [] };
 
@@ -38,6 +39,25 @@ const KIND_META = {
 
 function setStatus(msg) {
   if (statusEl) statusEl.textContent = msg;
+}
+
+function applyTheme(mode) {
+  document.documentElement.setAttribute("data-theme", mode);
+  window.localStorage.setItem("pulseboard-theme", mode);
+  if (themeToggleEl) {
+    themeToggleEl.textContent = mode === "dark" ? "☀️ Light" : "🌙 Dark";
+    themeToggleEl.setAttribute("aria-label", mode === "dark" ? "Switch to light mode" : "Switch to dark mode");
+  }
+}
+
+function initTheme() {
+  const stored = window.localStorage.getItem("pulseboard-theme");
+  if (stored === "dark" || stored === "light") {
+    applyTheme(stored);
+    return;
+  }
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applyTheme(prefersDark ? "dark" : "light");
 }
 
 function formMarkup(kind, mode = "create", seed = {}) {
@@ -252,6 +272,12 @@ document.addEventListener("click", (event) => {
   void handleHistoryAction(event);
 });
 
+themeToggleEl?.addEventListener("click", () => {
+  const mode = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  applyTheme(mode);
+});
+
 setStatus("Ready.");
+initTheme();
 renderCurrentHistory();
 void reloadHistory();

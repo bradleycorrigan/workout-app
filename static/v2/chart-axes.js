@@ -22,6 +22,7 @@ export function renderYAxis(g, yScale, innerW, opts = {}) {
   axisG.selectAll("line").attr("stroke", CHART_THEME.palette.grid);
   axisG.selectAll("path").attr("stroke", "none");
   styleAxis(axisG);
+  return axisG;
 }
 
 export function renderXAxis(g, xScale, innerH, opts = {}) {
@@ -34,4 +35,5 @@ export function renderXAxis(g, xScale, innerH, opts = {}) {
   axisG.selectAll("line").attr("stroke", CHART_THEME.palette.axis);
   axisG.selectAll("path").attr("stroke", CHART_THEME.palette.axis);
   styleAxis(axisG);
+  return axisG;
 }

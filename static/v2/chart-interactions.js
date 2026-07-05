@@ -1,4 +1,5 @@
 import { prefersReducedMotion } from "./chart-core.js";
+import { CHART_THEME } from "./chart-theme.js";
 
 const d3 = window.d3;
 
@@ -13,8 +14,8 @@ export function createTooltip(root) {
   const tooltip = document.createElement("div");
   tooltip.style.position = "absolute";
   tooltip.style.pointerEvents = "none";
-  tooltip.style.background = "rgba(16, 54, 63, 0.95)";
-  tooltip.style.color = "#f4fffb";
+  tooltip.style.background = CHART_THEME.semantic.focus;
+  tooltip.style.color = CHART_THEME.semantic.onBrand;
   tooltip.style.padding = "8px 10px";
   tooltip.style.borderRadius = "10px";
   tooltip.style.fontSize = "12px";
