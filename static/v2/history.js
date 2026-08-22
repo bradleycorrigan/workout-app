@@ -2,6 +2,15 @@ function formatErrSafe(value) {
   return String(value ?? "").replace(/"/g, "&quot;");
 }
 
+function daysInMonthFromKey(monthKey) {
+  const match = String(monthKey || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) return null;
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 export function renderMonthlySummary(rows) {
   const target = document.getElementById("summary-table");
   if (!target) return;
@@ -26,6 +35,54 @@ export function renderMonthlySummary(rows) {
     )
     .join("");
 
+  const totals = rows.reduce(
+    (acc, r) => {
+      acc.value_gbp += Number(r.value_gbp || 0);
+      acc.workout_days += Number(r.workout_days || 0);
+      acc.total_sessions += Number(r.total_sessions || 0);
+      acc.gym += Number(r.gym || 0);
+      acc.pool_swim += Number(r.pool_swim || 0);
+      acc.lido_res_swim += Number(r.lido_res_swim || 0);
+      acc.adherence_weighted_sum += Number(r.adherence_pct || 0) * Number(r.workout_days || 0);
+      acc.adherence_weight += Number(r.workout_days || 0);
+
+      const monthDays = daysInMonthFromKey(r.month);
+      if (monthDays) {
+        acc.calendar_days += monthDays;
+      }
+      return acc;
+    },
+    {
+      value_gbp: 0,
+      workout_days: 0,
+      total_sessions: 0,
+      gym: 0,
+      pool_swim: 0,
+      lido_res_swim: 0,
+      adherence_weighted_sum: 0,
+      adherence_weight: 0,
+      calendar_days: 0,
+    }
+  );
+
+  const adherenceTotal =
+    totals.calendar_days > 0
+      ? (totals.workout_days / totals.calendar_days) * 100
+      : totals.adherence_weight > 0
+        ? totals.adherence_weighted_sum / totals.adherence_weight
+        : 0;
+
+  const totalsRow = `<tr>
+        <td><strong>Total</strong></td>
+        <td><strong>${totals.value_gbp.toFixed(2)}</strong></td>
+        <td><strong>${adherenceTotal.toFixed(1)}%</strong></td>
+        <td><strong>${totals.workout_days}</strong></td>
+        <td><strong>${totals.total_sessions}</strong></td>
+        <td><strong>${totals.gym}</strong></td>
+        <td><strong>${totals.pool_swim}</strong></td>
+        <td><strong>${totals.lido_res_swim}</strong></td>
+      </tr>`;
+
   target.innerHTML = `
     <table>
       <thead>
@@ -41,6 +98,7 @@ export function renderMonthlySummary(rows) {
         </tr>
       </thead>
       <tbody>${body}</tbody>
+      <tfoot>${totalsRow}</tfoot>
     </table>
   `;
 }

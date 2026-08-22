@@ -1,9 +1,11 @@
 import os
+import asyncio
 import json
 import uuid
 from calendar import monthrange
+from contextlib import asynccontextmanager
 from datetime import date
-from typing import Any
+from typing import Any, AsyncIterator
 
 import asyncpg
 import pandas as pd
@@ -11,10 +13,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Query, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.types import Scope
 
 from concentration import calculate_concentration
 
@@ -58,8 +62,57 @@ WORKOUT_SHORT_DISPLAY: dict[str, str] = {
     "sauna": "Sauna",
 }
 
-app = FastAPI(title="Workout Dashboard")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+DB_POOL: asyncpg.Pool | None = None
+
+
+class CachedStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Scope) -> Any:
+        response = await super().get_response(path, scope)
+        method = scope.get("method", "GET")
+        if method in {"GET", "HEAD"} and getattr(response, "status_code", 0) == 200:
+            if path.startswith("v2/"):
+                response.headers.setdefault("Cache-Control", "public, max-age=86400")
+            else:
+                response.headers.setdefault("Cache-Control", "public, max-age=3600")
+        return response
+
+
+async def ensure_performance_indexes(conn: Any) -> None:
+    index_specs = [
+        ("workouts", "idx_workouts_user_date", "user_id, workout_date"),
+        ("weigh_ins", "idx_weigh_ins_user_date", "user_id, weigh_date"),
+        ("injections", "idx_injections_user_date", "user_id, injection_date"),
+    ]
+
+    for table_name, index_name, columns in index_specs:
+        exists = await conn.fetchval("SELECT to_regclass($1)", f"public.{table_name}")
+        if exists is None:
+            continue
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns})")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    global DB_POOL
+    DB_POOL = await asyncpg.create_pool(
+        DATABASE_URL,
+        statement_cache_size=0,
+        min_size=1,
+        max_size=10,
+    )
+    async with DB_POOL.acquire() as conn:
+        await ensure_performance_indexes(conn)
+    try:
+        yield
+    finally:
+        if DB_POOL is not None:
+            await DB_POOL.close()
+            DB_POOL = None
+
+
+app = FastAPI(title="Workout Dashboard", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.mount("/static", CachedStaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 THEME = {
@@ -142,8 +195,31 @@ def render_echarts_response(option: dict[str, Any], height: int = 340) -> HTMLRe
         return HTMLResponse(html)
 
 
-async def get_connection() -> asyncpg.Connection:
+async def get_connection() -> Any:
+    if DB_POOL is not None:
+        return await DB_POOL.acquire()
     return await asyncpg.connect(DATABASE_URL, statement_cache_size=0)
+
+
+async def release_connection(conn: Any) -> None:
+    if DB_POOL is not None:
+        await DB_POOL.release(conn)
+        return
+    await conn.close()
+
+
+def apply_default_insights_window(start_date: date | None, end_date: date | None) -> tuple[date | None, date | None]:
+    if start_date is not None or end_date is not None:
+        return start_date, end_date
+
+    today = date.today()
+    year = today.year
+    month = today.month - 2
+    while month <= 0:
+        month += 12
+        year -= 1
+
+    return date(year, month, 1), today
 
 
 def rows_to_dicts(rows: list[Any]) -> list[dict[str, Any]]:
@@ -332,7 +408,7 @@ async def dashboard_summary() -> dict[str, Any]:
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if summary_row is None:
         return {
@@ -365,7 +441,7 @@ async def add_weigh_in(
             weight_kg,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     return templates.TemplateResponse(
         request=request,
@@ -389,7 +465,7 @@ async def add_injection(
             dose_mg,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     return templates.TemplateResponse(
         request=request,
@@ -421,7 +497,7 @@ async def add_workout(
                 workout_value_gbp,
             )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     return templates.TemplateResponse(
         request=request,
@@ -440,7 +516,7 @@ async def delete_weigh_in(request: Request, weigh_in_id: int) -> HTMLResponse:
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if deleted == "DELETE 0":
         raise HTTPException(status_code=404, detail="Weigh-in not found.")
@@ -473,7 +549,7 @@ async def edit_weigh_in(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if updated == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Weigh-in not found.")
@@ -495,7 +571,7 @@ async def delete_injection(request: Request, injection_id: int) -> HTMLResponse:
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if deleted == "DELETE 0":
         raise HTTPException(status_code=404, detail="Injection not found.")
@@ -528,7 +604,7 @@ async def edit_injection(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if updated == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Injection not found.")
@@ -550,7 +626,7 @@ async def delete_workout(request: Request, workout_id: int) -> HTMLResponse:
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if deleted == "DELETE 0":
         raise HTTPException(status_code=404, detail="Workout not found.")
@@ -589,7 +665,7 @@ async def edit_workout(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if updated == "UPDATE 0":
         raise HTTPException(status_code=404, detail="Workout not found.")
@@ -621,7 +697,7 @@ async def concentration_chart(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if not rows:
         return HTMLResponse("<p>No injection data yet.</p>")
@@ -696,7 +772,7 @@ async def weight_trend_chart(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if not rows:
         return HTMLResponse("<p>No weight data yet.</p>")
@@ -784,7 +860,7 @@ async def workout_heatmap_chart(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if not rows:
         return HTMLResponse("<p>No workout data yet.</p>")
@@ -910,7 +986,7 @@ async def workout_mix_chart(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if not rows:
         return HTMLResponse("<p>No workout data yet.</p>")
@@ -1029,7 +1105,7 @@ async def monthly_summary_table(
             USER_ID,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     if not rows:
         return HTMLResponse("<p>No monthly data yet.</p>")
@@ -1060,6 +1136,7 @@ async def concentration_data(
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
 ) -> dict[str, Any]:
+    start_date, end_date = apply_default_insights_window(start_date, end_date)
     conn = await get_connection()
     try:
         rows = await conn.fetch(
@@ -1067,12 +1144,16 @@ async def concentration_data(
             SELECT injection_date, dose_mg
             FROM injections
             WHERE user_id = $1
+              AND ($2::date IS NULL OR injection_date >= $2)
+              AND ($3::date IS NULL OR injection_date <= $3)
             ORDER BY injection_date;
             """,
             USER_ID,
+            start_date,
+            end_date,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     selected_exercise = normalize_exercise_filter(exercise)
     if not rows:
@@ -1135,6 +1216,7 @@ async def weight_trend_data(
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
 ) -> dict[str, Any]:
+    start_date, end_date = apply_default_insights_window(start_date, end_date)
     conn = await get_connection()
     try:
         rows = await conn.fetch(
@@ -1142,12 +1224,16 @@ async def weight_trend_data(
             SELECT weigh_date, weight_kg
             FROM weigh_ins
             WHERE user_id = $1
+              AND ($2::date IS NULL OR weigh_date >= $2)
+              AND ($3::date IS NULL OR weigh_date <= $3)
             ORDER BY weigh_date;
             """,
             USER_ID,
+            start_date,
+            end_date,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     selected_exercise = normalize_exercise_filter(exercise)
     if not rows:
@@ -1213,6 +1299,7 @@ async def workout_heatmap_data(
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
 ) -> dict[str, Any]:
+    start_date, end_date = apply_default_insights_window(start_date, end_date)
     conn = await get_connection()
     try:
         rows = await conn.fetch(
@@ -1220,12 +1307,16 @@ async def workout_heatmap_data(
             SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
             FROM workouts
             WHERE user_id = $1
+              AND ($2::date IS NULL OR workout_date >= $2)
+              AND ($3::date IS NULL OR workout_date <= $3)
             ORDER BY workout_date;
             """,
             USER_ID,
+            start_date,
+            end_date,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     selected_exercise = normalize_exercise_filter(exercise)
     if not rows:
@@ -1335,6 +1426,7 @@ async def workout_mix_data(
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
 ) -> dict[str, Any]:
+    start_date, end_date = apply_default_insights_window(start_date, end_date)
     conn = await get_connection()
     try:
         rows = await conn.fetch(
@@ -1342,12 +1434,16 @@ async def workout_mix_data(
             SELECT workout_date, workout_type
             FROM workouts
             WHERE user_id = $1
+              AND ($2::date IS NULL OR workout_date >= $2)
+              AND ($3::date IS NULL OR workout_date <= $3)
             ORDER BY workout_date;
             """,
             USER_ID,
+            start_date,
+            end_date,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     selected_exercise = normalize_exercise_filter(exercise)
     if not rows:
@@ -1415,6 +1511,7 @@ async def monthly_summary_data(
     end_date: date | None = Query(default=None),
     exercise: str = Query(default="all"),
 ) -> dict[str, Any]:
+    start_date, end_date = apply_default_insights_window(start_date, end_date)
     conn = await get_connection()
     try:
         rows = await conn.fetch(
@@ -1422,12 +1519,16 @@ async def monthly_summary_data(
             SELECT workout_date, workout_type, COALESCE(workout_value_gbp, 0) AS workout_value_gbp
             FROM workouts
             WHERE user_id = $1
+              AND ($2::date IS NULL OR workout_date >= $2)
+              AND ($3::date IS NULL OR workout_date <= $3)
             ORDER BY workout_date;
             """,
             USER_ID,
+            start_date,
+            end_date,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     selected_exercise = normalize_exercise_filter(exercise)
     if not rows:
@@ -1468,6 +1569,48 @@ async def monthly_summary_data(
     }
 
 
+@app.get("/api/insights/bundle")
+async def insights_bundle(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    exercise: str = Query(default="all"),
+) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "conc": {"points": [], "injections": [], "meta": {}},
+        "weight": {"points": [], "meta": {}},
+        "mix": {"points": [], "meta": {}},
+        "heatmap": {"months": [], "days": list(range(1, 32)), "cells": [], "meta": {}},
+        "summary": {"rows": [], "meta": {}},
+        "dashboard": {"month_label": "", "month_workouts": 0, "month_weigh_ins": 0, "month_value_gbp": 0.0},
+    }
+
+    jobs: list[tuple[str, Any]] = [
+        ("conc", concentration_data(start_date=start_date, end_date=end_date, exercise=exercise)),
+        ("weight", weight_trend_data(start_date=start_date, end_date=end_date, exercise=exercise)),
+        ("mix", workout_mix_data(start_date=start_date, end_date=end_date, exercise=exercise)),
+        ("heatmap", workout_heatmap_data(start_date=start_date, end_date=end_date, exercise=exercise)),
+        ("summary", monthly_summary_data(start_date=start_date, end_date=end_date, exercise=exercise)),
+        ("dashboard", dashboard_summary()),
+    ]
+
+    results = await asyncio.gather(*(job for _, job in jobs), return_exceptions=True)
+    payload: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+
+    for (key, _), result in zip(jobs, results):
+        if isinstance(result, Exception):
+            payload[key] = defaults[key]
+            errors[key] = str(result)
+        else:
+            payload[key] = result
+
+    if len(errors) == len(jobs):
+        raise HTTPException(status_code=503, detail="Could not load insights data.")
+
+    payload["_errors"] = errors
+    return payload
+
+
 @app.get("/api/history")
 async def recent_history_data(limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
     conn = await get_connection()
@@ -1506,7 +1649,7 @@ async def recent_history_data(limit: int = Query(default=20, ge=1, le=100)) -> d
             limit,
         )
     finally:
-        await conn.close()
+        await release_connection(conn)
 
     weigh = [
         {

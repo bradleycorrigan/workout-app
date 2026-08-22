@@ -91,16 +91,16 @@ function defaultMonthSelection(months) {
   if (!months || !months.length) return [];
   const current = currentMonthKey();
   const monthSet = new Set(months);
-  const desired = [0, -1, -2, -3].map((offset) => shiftMonth(current, offset));
+  const desired = [0, -1, -2].map((offset) => shiftMonth(current, offset));
   const picked = desired.filter((ym) => monthSet.has(ym)).sort();
   if (picked.length) return picked;
-  return months.slice(-4);
+  return months.slice(-3);
 }
 
 function updateMonthPickerLabel(selected) {
   if (!monthPickerToggleEl) return;
   if (!selected.length) {
-    monthPickerToggleEl.textContent = "Current month";
+    monthPickerToggleEl.textContent = "Default chart window (3 months)";
     return;
   }
   if (selected.length === 1) {
@@ -219,19 +219,17 @@ function currentOrPriorPoint(points, valueKey) {
   };
 }
 
-function renderTopMetrics(payload, windowLabel) {
-  const heatCells = payload?.heatmap?.cells || [];
-  const workouts = heatCells.reduce((sum, c) => sum + Number(c.count || 0), 0);
-  const value = heatCells.reduce((sum, c) => sum + Number(c.value_gbp || 0), 0);
-  const weighIns = (payload?.weight?.points || []).length;
+function renderTopMetrics(payload) {
+  const dashboard = payload?.dashboard || {};
+  const monthLabel = String(dashboard.month_label || "Current month").toUpperCase();
 
-  if (metricWorkouts) metricWorkouts.textContent = String(workouts);
-  if (metricWeigh) metricWeigh.textContent = String(weighIns);
-  if (metricValue) metricValue.textContent = value.toFixed(2);
+  if (metricWorkouts) metricWorkouts.textContent = String(dashboard.month_workouts ?? 0);
+  if (metricWeigh) metricWeigh.textContent = String(dashboard.month_weigh_ins ?? 0);
+  if (metricValue) metricValue.textContent = Number(dashboard.month_value_gbp ?? 0).toFixed(2);
 
-  if (metricWorkoutsLabel) metricWorkoutsLabel.textContent = `💪 Workouts (${windowLabel})`;
-  if (metricWeighLabel) metricWeighLabel.textContent = `⚖️ Weigh-ins (${windowLabel})`;
-  if (metricValueLabel) metricValueLabel.textContent = `💷 Workout Value GBP (${windowLabel})`;
+  if (metricWorkoutsLabel) metricWorkoutsLabel.textContent = `💪 Workouts (${monthLabel})`;
+  if (metricWeighLabel) metricWeighLabel.textContent = `⚖️ Weigh-ins (${monthLabel})`;
+  if (metricValueLabel) metricValueLabel.textContent = `💷 Workout Value GBP (${monthLabel})`;
 }
 
 function renderNarrativeSummaries(payload, windowLabel) {
@@ -296,11 +294,14 @@ function renderNarrativeSummaries(payload, windowLabel) {
         mixSummaryEl.textContent = `Mix is showing month-to-date day 1-${selected.day} in ${formatMonth(selected.month)} (${totalSessions} sessions across ${activeDays} active days).`;
       }
     } else {
-      const months = payload?.mix?.points || [];
-      const last = months.length ? months[months.length - 1].month : null;
-      mixSummaryEl.textContent = last
-        ? `Mix is showing full month: ${formatMonth(last)}.`
-        : `No mix data in ${windowLabel}.`;
+      const cells = payload?.heatmap?.cells || [];
+      if (!cells.length) {
+        mixSummaryEl.textContent = `No mix data in ${windowLabel}.`;
+      } else {
+        const totalSessions = cells.reduce((sum, c) => sum + Number(c.count || 0), 0);
+        const activeDays = cells.filter((c) => Number(c.count || 0) > 0).length;
+        mixSummaryEl.textContent = `Mix is showing selected window (${windowLabel}): ${totalSessions} sessions across ${activeDays} active days.`;
+      }
     }
   }
 }
@@ -314,7 +315,7 @@ function renderFromPayload(payload) {
 
   chartRegistry.renderAll(filteredPayload, insightsState.get());
   renderMonthlySummary((filteredPayload.summary && filteredPayload.summary.rows) || []);
-  renderTopMetrics(filteredPayload, windowLabel);
+  renderTopMetrics(payload);
   renderNarrativeSummaries(filteredPayload, windowLabel);
 
   if (mixResetEl) {

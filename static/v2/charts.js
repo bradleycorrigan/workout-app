@@ -41,22 +41,21 @@ function bucketKeyFromWorkoutType(workoutType) {
   return "lido";
 }
 
-function distributionFromHeatmap(cells, monthKey, cutoffDay) {
+function distributionFromHeatmap(cells, predicate) {
   const buckets = { gym: 0, pool: 0, lido: 0 };
   let totalSessions = 0;
   let selectedDaySessions = 0;
   let sessionsBeforeSelectedDay = 0;
   let activeDays = 0;
   for (const cell of cells || []) {
-    if (String(cell.month) !== String(monthKey)) continue;
     const day = Number(cell.day || 0);
-    if (!day || day > cutoffDay) continue;
+    if (!day) continue;
+    if (typeof predicate === "function" && !predicate(cell, day)) continue;
+
     const sessionCount = Number(cell.count || 0);
     totalSessions += sessionCount;
     if (sessionCount > 0) {
       activeDays += 1;
-      if (day < cutoffDay) sessionsBeforeSelectedDay += sessionCount;
-      if (day === cutoffDay) selectedDaySessions += sessionCount;
     }
     const typeCounts = cell.workout_types || {};
     for (const [workoutType, rawCount] of Object.entries(typeCounts)) {
@@ -81,7 +80,19 @@ function distributionFromHeatmap(cells, monthKey, cutoffDay) {
 
 function resolveMixFocus(parsed, selectedHeatmap = null, heatmapData = null) {
   const latest = parsed[parsed.length - 1];
+  const heatmapCells = heatmapData?.cells || [];
+
   if (!selectedHeatmap) {
+    const acrossWindow = distributionFromHeatmap(heatmapCells);
+    if (acrossWindow) {
+      const months = (heatmapData?.months || []).map((m) => String(m)).sort();
+      const centerLabel = months.length === 1 ? monthLabel(months[0]) : `${months.length} months`;
+      return {
+        focus: { ...acrossWindow, centerLabel },
+        contextText: "Selected month window",
+      };
+    }
+
     return {
       focus: latest,
       contextText: `Full month view: ${monthLabel(latest.month)}`,
@@ -99,13 +110,29 @@ function resolveMixFocus(parsed, selectedHeatmap = null, heatmapData = null) {
     };
   }
 
-  const mtd = distributionFromHeatmap(heatmapData.cells, focus.month, cutoffDay);
+  const mtd = distributionFromHeatmap(
+    heatmapData.cells,
+    (cell, day) => String(cell.month) === String(focus.month) && day <= cutoffDay
+  );
   if (!mtd) {
     return {
       focus,
       contextText: `Full month view: ${monthLabel(focus.month)}`,
     };
   }
+
+  let selectedDaySessions = 0;
+  let sessionsBeforeSelectedDay = 0;
+  for (const cell of heatmapData.cells || []) {
+    if (String(cell.month) !== String(focus.month)) continue;
+    const day = Number(cell.day || 0);
+    if (!day || day > cutoffDay) continue;
+    const sessionCount = Number(cell.count || 0);
+    if (day < cutoffDay) sessionsBeforeSelectedDay += sessionCount;
+    if (day === cutoffDay) selectedDaySessions += sessionCount;
+  }
+  mtd.selectedDaySessions = selectedDaySessions;
+  mtd.sessionsBeforeSelectedDay = sessionsBeforeSelectedDay;
 
   let contextText = `Month-to-date day 1-${cutoffDay} (${monthLabel(focus.month)})`;
   if (mtd.totalSessions === 0) {
@@ -181,7 +208,7 @@ function renderMixRadial(g, focusPoint, contextText, innerW, innerH) {
     .attr("font-size", 12)
     .attr("font-weight", 700)
     .attr("fill", CHART_THEME.semantic.focus)
-    .text(monthLabel(focusPoint.month));
+    .text(focusPoint.centerLabel || monthLabel(focusPoint.month));
 
   group
     .append("text")
@@ -378,6 +405,7 @@ export function renderHeatmapChart(data, options = {}) {
             .attr("text-anchor", "middle")
             .attr("font-size", 8)
             .attr("fill", CHART_THEME.palette.detailText)
+            .style("pointer-events", "none")
             .text(label.length > 11 ? `${label.slice(0, 10)}.` : label);
         }
       });

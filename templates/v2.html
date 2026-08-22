@@ -32,6 +32,7 @@
             --motion-smooth: cubic-bezier(0.22, 1, 0.36, 1);
         }
         * { box-sizing: border-box; }
+        html, body { width: 100%; overflow-x: hidden; }
         input, button { font: inherit; color: inherit; }
         body {
             margin: 0;
@@ -286,8 +287,13 @@
             margin-top: 12px;
             position: relative;
             z-index: 1;
+            min-width: 0;
         }
-        .card { padding: 12px; }
+        .card {
+            padding: 12px;
+            min-width: 0;
+            overflow: hidden;
+        }
         .card h2 {
             margin: 0 0 10px;
             font-family: "Sora", sans-serif;
@@ -296,7 +302,7 @@
             font-weight: 720;
             color: var(--pb-heading);
         }
-        .chart { width: 100%; min-height: 260px; }
+        .chart { width: 100%; min-height: 260px; min-width: 0; overflow: hidden; }
         .chart.short { min-height: 210px; }
         .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
         .mix-controls {
@@ -494,6 +500,8 @@
             .month-picker { min-width: 0; }
             .page { padding: 12px 12px 128px; }
             .stack { gap: 10px; }
+            .heatmap-legend { grid-template-columns: 1fr; }
+            .legend-chip { width: max-content; max-width: 100%; }
             .bottom-tab {
                 min-height: 34px;
                 padding: 0 12px;
@@ -521,7 +529,7 @@
             </div>
             <div class="filters">
                 <div id="month-picker" class="month-picker">
-                    <button id="month-picker-toggle" class="month-picker-toggle" type="button" aria-expanded="false" aria-controls="month-picker-menu">Select months</button>
+                    <button id="month-picker-toggle" class="month-picker-toggle" type="button" aria-expanded="false" aria-controls="month-picker-menu">Select chart months</button>
                     <div id="month-picker-menu" class="month-picker-menu" hidden>
                         <div id="month-picker-options" class="month-picker-options"></div>
                         <div class="month-picker-actions">
@@ -532,7 +540,7 @@
                 </div>
                 <button id="apply">Apply Months</button>
             </div>
-            <p class="filters-help">Pick one or more months. If none are checked, default view uses current month plus 3 previous months.</p>
+            <p class="filters-help">Pick one or more months for charts and table. If none are checked, charts default to current month plus 2 previous months. Headline metrics always show current month.</p>
             <div id="status" class="status" role="status" aria-live="polite">Loading charts...</div>
         </section>
 
